@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Loader2 } from "lucide-react";
 
 interface StartupProfile {
   company_name: string;
@@ -35,9 +36,10 @@ interface SavedProfile {
 interface StartupProfileFormProps {
   onSubmit: (profile: StartupProfile, saveProfile: boolean) => void;
   savedProfiles?: SavedProfile[];
+  isAnalyzing?: boolean;
 }
 
-export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProfileFormProps) => {
+export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing = false }: StartupProfileFormProps) => {
   const { toast } = useToast();
   const [saveProfile, setSaveProfile] = useState(false);
   const [useExisting, setUseExisting] = useState(false);
@@ -157,7 +159,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
               value={formData.company_name}
               onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
               placeholder="e.g., Chravel"
-              disabled={useExisting}
+              disabled={useExisting || isAnalyzing}
             />
           </div>
 
@@ -169,7 +171,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
               value={formData.company_website}
               onChange={(e) => setFormData({ ...formData, company_website: e.target.value })}
               placeholder="https://yourcompany.com"
-              disabled={useExisting}
+              disabled={useExisting || isAnalyzing}
             />
           </div>
 
@@ -178,7 +180,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
             <Select
               value={formData.stage}
               onValueChange={(value) => setFormData({ ...formData, stage: value })}
-              disabled={useExisting}
+              disabled={useExisting || isAnalyzing}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select stage" />
@@ -203,7 +205,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
                 value={formData.funding_raised}
                 onChange={(e) => setFormData({ ...formData, funding_raised: e.target.value })}
                 placeholder="e.g., $2M"
-                disabled={useExisting}
+                disabled={useExisting || isAnalyzing}
               />
             </div>
 
@@ -214,7 +216,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
                 value={formData.valuation}
                 onChange={(e) => setFormData({ ...formData, valuation: e.target.value })}
                 placeholder="e.g., $10M"
-                disabled={useExisting}
+                disabled={useExisting || isAnalyzing}
               />
             </div>
           </div>
@@ -228,7 +230,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
                 value={formData.employee_count}
                 onChange={(e) => setFormData({ ...formData, employee_count: parseInt(e.target.value) || 0 })}
                 placeholder="e.g., 8"
-                disabled={useExisting}
+                disabled={useExisting || isAnalyzing}
               />
             </div>
 
@@ -239,7 +241,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
                 value={formData.industry}
                 onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
                 placeholder="e.g., Travel Tech"
-                disabled={useExisting}
+                disabled={useExisting || isAnalyzing}
               />
             </div>
           </div>
@@ -252,12 +254,19 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="What does your company do? What's your biggest challenge? What are you trying to achieve in the next 6-12 months?"
               className="min-h-[120px]"
-              disabled={useExisting}
+              disabled={useExisting || isAnalyzing}
             />
           </div>
 
-          <Button type="submit" className="w-full">
-            Continue to Analysis
+          <Button type="submit" className="w-full" disabled={isAnalyzing}>
+            {isAnalyzing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Analyzing episode...
+              </>
+            ) : (
+              "Continue to Analysis"
+            )}
           </Button>
         </form>
       </CardContent>

@@ -160,6 +160,7 @@ export const AnalysisForm = () => {
         <StartupProfileForm
           onSubmit={handleProfileSubmit}
           savedProfiles={savedProfiles}
+          isAnalyzing={isAnalyzing}
         />
       </div>
     );
