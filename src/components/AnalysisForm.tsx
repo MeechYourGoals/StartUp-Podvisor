@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Loader2, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const POPULAR_PODCASTS = [
   "Crucible Moments",
@@ -21,6 +22,7 @@ export const AnalysisForm = () => {
   const [podcastName, setPodcastName] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState("");
+  const [inputMode, setInputMode] = useState<"series" | "url">("url");
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -83,10 +85,10 @@ export const AnalysisForm = () => {
   };
 
   return (
-    <Card className="p-8 shadow-lg border-primary/10">
+    <Card className="p-8 shadow-lg border-primary/10 hover:shadow-xl transition-shadow">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+        <div className="space-y-2 text-center">
+          <h2 className="text-2xl font-bold flex items-center justify-center gap-2">
             <Sparkles className="w-6 h-6 text-primary" />
             Analyze New Episode
           </h2>
@@ -95,62 +97,90 @@ export const AnalysisForm = () => {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label htmlFor="podcastName" className="text-sm font-medium">
-              Podcast Series <span className="text-muted-foreground text-xs">(optional)</span>
-            </label>
-            <Input
-              id="podcastName"
-              placeholder="e.g., Crucible Moments (auto-detected if left blank)"
-              value={podcastName}
-              onChange={(e) => setPodcastName(e.target.value)}
-              disabled={isAnalyzing}
-              list="popular-podcasts"
-            />
-            <datalist id="popular-podcasts">
-              {POPULAR_PODCASTS.map((podcast) => (
-                <option key={podcast} value={podcast} />
-              ))}
-            </datalist>
-            <p className="text-xs text-muted-foreground">
-              Leave blank to auto-detect from the episode
-            </p>
-          </div>
+        <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as "series" | "url")} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
+            <TabsTrigger value="series">By Podcast Series</TabsTrigger>
+            <TabsTrigger value="url">Direct URL</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="series" className="space-y-4 mt-6">
+            <div className="space-y-2 max-w-xl mx-auto">
+              <label htmlFor="podcastNameSeries" className="text-sm font-medium">
+                Podcast Series Name
+              </label>
+              <Input
+                id="podcastNameSeries"
+                placeholder="e.g., Crucible Moments, How I Built This"
+                value={podcastName}
+                onChange={(e) => setPodcastName(e.target.value)}
+                disabled={isAnalyzing}
+                list="popular-podcasts"
+                className="text-center"
+              />
+              <datalist id="popular-podcasts">
+                {POPULAR_PODCASTS.map((podcast) => (
+                  <option key={podcast} value={podcast} />
+                ))}
+              </datalist>
+            </div>
+            
+            <div className="space-y-2 max-w-xl mx-auto">
+              <label htmlFor="episodeUrlSeries" className="text-sm font-medium">
+                Episode URL
+              </label>
+              <Input
+                id="episodeUrlSeries"
+                type="url"
+                placeholder="https://youtube.com/watch?v=..."
+                value={episodeUrl}
+                onChange={(e) => setEpisodeUrl(e.target.value)}
+                disabled={isAnalyzing}
+                className="text-center"
+              />
+            </div>
+          </TabsContent>
 
-          <div className="space-y-2">
-            <label htmlFor="episodeUrl" className="text-sm font-medium">
-              Episode URL
-            </label>
-            <Input
-              id="episodeUrl"
-              type="url"
-              placeholder="https://youtube.com/watch?v=..."
-              value={episodeUrl}
-              onChange={(e) => setEpisodeUrl(e.target.value)}
-              disabled={isAnalyzing}
-            />
-          </div>
+          <TabsContent value="url" className="space-y-4 mt-6">
+            <div className="space-y-2 max-w-xl mx-auto">
+              <label htmlFor="episodeUrlDirect" className="text-sm font-medium text-center block">
+                Episode URL
+              </label>
+              <Input
+                id="episodeUrlDirect"
+                type="url"
+                placeholder="https://youtube.com/watch?v=... or Spotify link"
+                value={episodeUrl}
+                onChange={(e) => setEpisodeUrl(e.target.value)}
+                disabled={isAnalyzing}
+                className="text-center text-lg py-6"
+              />
+              <p className="text-xs text-muted-foreground text-center">
+                Podcast series will be auto-detected
+              </p>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        <div className="flex justify-center">
+          <Button 
+            type="submit" 
+            disabled={isAnalyzing}
+            size="lg"
+            className="min-w-[200px]"
+          >
+            {isAnalyzing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {progress || "Analyzing..."}
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Analyze Episode
+              </>
+            )}
+          </Button>
         </div>
-
-        <Button 
-          type="submit" 
-          disabled={isAnalyzing}
-          className="w-full md:w-auto"
-          size="lg"
-        >
-          {isAnalyzing ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {progress || "Analyzing Episode..."}
-            </>
-          ) : (
-            <>
-              <Sparkles className="mr-2 h-4 w-4" />
-              Analyze Episode
-            </>
-          )}
-        </Button>
       </form>
     </Card>
   );

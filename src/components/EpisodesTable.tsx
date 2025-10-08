@@ -3,7 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, TrendingUp } from "lucide-react";
+import { ExternalLink, TrendingUp, MoreVertical, Eye, Bookmark, Download, Copy, Youtube, Headphones } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ExportModal } from "@/components/ExportModal";
+import { BookmarkButton } from "@/components/BookmarkButton";
+import { useToast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -37,6 +47,9 @@ interface EpisodesTableProps {
 export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [selectedExportId, setSelectedExportId] = useState<string | undefined>();
+  const { toast } = useToast();
 
   const fetchEpisodes = async () => {
     try {
@@ -91,6 +104,32 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
     );
   }
 
+  const getPlatformIcon = (url: string) => {
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      return <Youtube className="w-4 h-4" />;
+    }
+    return <Headphones className="w-4 h-4" />;
+  };
+
+  const getPlatformLabel = (url: string) => {
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      return "Watch Now";
+    }
+    return "Listen Now";
+  };
+
+  const handleExport = (episodeId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedExportId(episodeId);
+    setExportModalOpen(true);
+  };
+
+  const handleCopyLink = (url: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(url);
+    toast({ title: "Link copied to clipboard" });
+  };
+
   if (episodes.length === 0) {
     return (
       <Card className="p-12 text-center">
@@ -103,16 +142,31 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   }
 
   return (
-    <Card className="overflow-hidden">
-      <div className="p-6 border-b bg-muted/30">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <TrendingUp className="w-6 h-6 text-primary" />
-          Analyzed Episodes
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {episodes.length} episode{episodes.length !== 1 ? 's' : ''} in database
-        </p>
-      </div>
+    <>
+      <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
+        <div className="p-6 border-b bg-muted/30">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <TrendingUp className="w-6 h-6 text-primary" />
+                Analyzed Episodes
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {episodes.length} episode{episodes.length !== 1 ? 's' : ''} in database
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedExportId(undefined);
+                setExportModalOpen(true);
+              }}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export All
+            </Button>
+          </div>
+        </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -153,22 +207,61 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
                 </TableCell>
                 <TableCell>{episode.companies?.industry || '-'}</TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(episode.url, '_blank');
-                    }}
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <BookmarkButton episodeId={episode.id} />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(episode.url, '_blank');
+                          }}
+                        >
+                          {getPlatformIcon(episode.url)}
+                          <span className="ml-2">{getPlatformLabel(episode.url)}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectEpisode(episode.id);
+                          }}
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span className="ml-2">View Details</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={(e) => handleExport(episode.id, e)}>
+                          <Download className="w-4 h-4" />
+                          <span className="ml-2">Export Episode</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => handleCopyLink(episode.url, e)}>
+                          <Copy className="w-4 h-4" />
+                          <span className="ml-2">Copy Link</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
-    </Card>
+      </Card>
+      <ExportModal
+        episodeId={selectedExportId}
+        open={exportModalOpen}
+        onOpenChange={setExportModalOpen}
+      />
+    </>
   );
 };

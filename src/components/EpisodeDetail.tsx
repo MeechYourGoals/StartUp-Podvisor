@@ -147,10 +147,12 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
                 </p>
               )}
             </div>
-            <Button asChild>
+            <Button asChild size="lg">
               <a href={episode.url} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-4 h-4 mr-2" />
-                Watch Episode
+                {episode.url.includes('youtube.com') || episode.url.includes('youtu.be') 
+                  ? 'Watch Episode' 
+                  : 'Listen Now'}
               </a>
             </Button>
           </div>

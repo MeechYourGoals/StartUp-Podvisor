@@ -10,7 +10,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <HeroSection />
-      <div className="container mx-auto px-4 py-12 space-y-12">
+      <div className="container mx-auto px-4 py-12 space-y-12 max-w-6xl">
         <AnalysisForm />
         {selectedEpisodeId ? (
           <EpisodeDetail 
