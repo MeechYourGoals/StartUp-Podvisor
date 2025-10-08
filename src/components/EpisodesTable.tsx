@@ -89,22 +89,32 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
       return;
     }
 
+    // Optimistically remove from UI
+    const previousEpisodes = episodes;
+    setEpisodes(prev => prev.filter(ep => ep.id !== episodeId));
+
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('episodes')
         .delete()
-        .eq('id', episodeId);
+        .eq('id', episodeId)
+        .select();
 
       if (error) throw error;
+
+      // Verify deletion occurred
+      if (!data || data.length === 0) {
+        throw new Error('Delete not permitted or episode not found');
+      }
 
       toast({
         title: "Analysis deleted",
         description: "Episode and all associated data have been removed.",
       });
-
-      fetchEpisodes();
     } catch (error) {
       console.error('Error deleting episode:', error);
+      // Revert optimistic update on failure
+      setEpisodes(previousEpisodes);
       toast({
         title: "Delete failed",
         description: "Could not delete the episode. Please try again.",
