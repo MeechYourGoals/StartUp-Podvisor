@@ -125,8 +125,8 @@ INSTRUCTIONS:
                       type: "object",
                       properties: {
                         text: { type: "string", description: "3-4 sentence detailed lesson with specific context" },
-                        impactScore: { type: "number", minimum: 1, maximum: 10 },
-                        actionabilityScore: { type: "number", minimum: 1, maximum: 10 },
+                        impactScore: { type: "integer", minimum: 1, maximum: 10 },
+                        actionabilityScore: { type: "integer", minimum: 1, maximum: 10 },
                         category: { type: "string", description: "e.g., Product, Growth, Fundraising, Team" },
                         founderAttribution: { type: "string", description: "Founder's name" }
                       },
@@ -142,7 +142,7 @@ INSTRUCTIONS:
                       type: "object",
                       properties: {
                         text: { type: "string", description: "Specific callout relevant to travel/events" },
-                        relevanceScore: { type: "number", minimum: 1, maximum: 10 }
+                        relevanceScore: { type: "integer", minimum: 1, maximum: 10 }
                       },
                       required: ["text", "relevanceScore"]
                     }
@@ -213,7 +213,7 @@ INSTRUCTIONS:
         .from('companies')
         .select('id')
         .eq('name', analysis.company.name)
-        .single();
+        .maybeSingle();
 
       if (existingCompany) {
         companyId = existingCompany.id;
@@ -233,18 +233,23 @@ INSTRUCTIONS:
           .select('id')
           .single();
 
-        if (companyError) throw companyError;
+        if (companyError) {
+          console.error('Error creating company:', companyError);
+          throw new Error(`Failed to create company: ${companyError.message} (${companyError.code})`);
+        }
         companyId = newCompany.id;
       }
     }
 
-    // Step 5: Create episode
+    // Step 5: Create episode with date validation
+    const isValidDate = (dateStr: string) => /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+    
     const { data: episode, error: episodeError } = await supabase
       .from('episodes')
       .insert({
         podcast_id: podcastId,
         title: analysis.episodeTitle,
-        release_date: analysis.releaseDate,
+        release_date: (analysis.releaseDate && isValidDate(analysis.releaseDate)) ? analysis.releaseDate : undefined,
         url: episodeUrl,
         company_id: companyId,
         founder_names: analysis.founderNames,
@@ -253,15 +258,20 @@ INSTRUCTIONS:
       .select('id')
       .single();
 
-    if (episodeError) throw episodeError;
+    if (episodeError) {
+      console.error('Error creating episode:', episodeError);
+      throw new Error(`Failed to create episode: ${episodeError.message} (${episodeError.code})`);
+    }
 
-    // Step 6: Insert lessons
+    // Step 6: Insert lessons with normalization
     if (analysis.lessons?.length > 0) {
+      const clampScore = (val: any) => Math.max(1, Math.min(10, Math.round(Number(val) || 5)));
+      
       const lessonsToInsert = analysis.lessons.map((lesson: any) => ({
         episode_id: episode.id,
         lesson_text: lesson.text,
-        impact_score: lesson.impactScore,
-        actionability_score: lesson.actionabilityScore,
+        impact_score: clampScore(lesson.impactScore),
+        actionability_score: clampScore(lesson.actionabilityScore),
         category: lesson.category,
         founder_attribution: lesson.founderAttribution,
       }));
@@ -270,22 +280,30 @@ INSTRUCTIONS:
         .from('lessons')
         .insert(lessonsToInsert);
 
-      if (lessonsError) throw lessonsError;
+      if (lessonsError) {
+        console.error('Error inserting lessons:', lessonsError);
+        throw new Error(`Failed to save lessons: ${lessonsError.message} (${lessonsError.code})`);
+      }
     }
 
-    // Step 7: Insert chavel callouts
+    // Step 7: Insert chavel callouts with normalization
     if (analysis.chavelCallouts?.length > 0) {
+      const clampScore = (val: any) => Math.max(1, Math.min(10, Math.round(Number(val) || 5)));
+      
       const calloutsToInsert = analysis.chavelCallouts.map((callout: any) => ({
         episode_id: episode.id,
         callout_text: callout.text,
-        relevance_score: callout.relevanceScore,
+        relevance_score: clampScore(callout.relevanceScore),
       }));
 
       const { error: calloutsError } = await supabase
         .from('chavel_callouts')
         .insert(calloutsToInsert);
 
-      if (calloutsError) throw calloutsError;
+      if (calloutsError) {
+        console.error('Error inserting callouts:', calloutsError);
+        throw new Error(`Failed to save callouts: ${calloutsError.message} (${calloutsError.code})`);
+      }
     }
 
     return new Response(JSON.stringify({ 
@@ -298,8 +316,17 @@ INSTRUCTIONS:
 
   } catch (error) {
     console.error('Error in analyze-episode:', error);
+    
+    // Provide detailed error messages
+    let errorMessage = 'Unknown error occurred';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'object' && error !== null) {
+      errorMessage = JSON.stringify(error);
+    }
+    
     return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      error: errorMessage
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
