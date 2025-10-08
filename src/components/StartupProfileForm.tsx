@@ -74,10 +74,11 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.company_name || !formData.stage || !formData.description) {
+    // Only validate if user wants to save profile OR is using an existing one
+    if ((saveProfile || useExisting) && (!formData.company_name || !formData.stage || !formData.description)) {
       toast({
         title: "Missing Information",
-        description: "Please fill in company name, stage, and description.",
+        description: "Please fill in company name, stage, and description to save as a profile.",
         variant: "destructive",
       });
       return;
@@ -89,9 +90,9 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>Startup Context</CardTitle>
+        <CardTitle>Startup Context (Optional)</CardTitle>
         <CardDescription>
-          Tell us about your startup to get personalized insights from this episode
+          Skip this step to get universal insights, or fill in your startup details to get personalized recommendations
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -130,28 +131,32 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
           )}
 
           {!useExisting && (
-            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="save-profile"
-                  checked={saveProfile}
-                  onCheckedChange={setSaveProfile}
-                />
-                <Label htmlFor="save-profile" className="cursor-pointer">
-                  Save as Profile (max 3)
-                </Label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="save-profile"
+                    checked={saveProfile}
+                    onCheckedChange={setSaveProfile}
+                  />
+                  <Label htmlFor="save-profile" className="cursor-pointer">
+                    Save as Profile (max 3)
+                  </Label>
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground px-4">
+                Toggle on to save your startup details and get personalized insights. Leave off to skip personalization and get universal insights only.
+              </p>
             </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="company_name">Company Name *</Label>
+            <Label htmlFor="company_name">Company Name {(saveProfile || useExisting) && "*"}</Label>
             <Input
               id="company_name"
               value={formData.company_name}
               onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
               placeholder="e.g., Chravel"
-              required
               disabled={useExisting}
             />
           </div>
@@ -169,7 +174,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="stage">Current Stage *</Label>
+            <Label htmlFor="stage">Current Stage {(saveProfile || useExisting) && "*"}</Label>
             <Select
               value={formData.stage}
               onValueChange={(value) => setFormData({ ...formData, stage: value })}
@@ -240,14 +245,13 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [] }: StartupProf
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description *</Label>
+            <Label htmlFor="description">Description {(saveProfile || useExisting) && "*"}</Label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="What does your company do? What's your biggest challenge? What are you trying to achieve in the next 6-12 months?"
               className="min-h-[120px]"
-              required
               disabled={useExisting}
             />
           </div>

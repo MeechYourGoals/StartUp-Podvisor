@@ -91,7 +91,9 @@ export const AnalysisForm = () => {
       }
     }
 
-    await analyzeWithContext(profile);
+    // Check if profile has meaningful data - if all key fields are empty, pass null
+    const hasData = profile.company_name || profile.stage || profile.description;
+    await analyzeWithContext(hasData ? profile : null);
   };
 
   const analyzeWithContext = async (profile: any) => {

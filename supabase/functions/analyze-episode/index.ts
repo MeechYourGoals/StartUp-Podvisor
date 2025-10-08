@@ -306,8 +306,14 @@ INSTRUCTIONS:
       }
     }
 
-    // Step 8: Generate personalized insights if startup profile provided
-    if (startupProfile) {
+    // Step 8: Generate personalized insights if startup profile provided with meaningful data
+    const hasStartupData = startupProfile && (
+      startupProfile.company_name || 
+      startupProfile.stage || 
+      startupProfile.description
+    );
+    
+    if (hasStartupData) {
       console.log('Generating personalized insights...');
       
       // Fetch the inserted lessons
@@ -401,7 +407,7 @@ Make it tactical and specific to their company stage, industry, and challenges.`
     return new Response(JSON.stringify({ 
       success: true, 
       episodeId: episode.id,
-      message: 'Episode analyzed successfully' + (startupProfile ? ' with personalized insights' : '')
+      message: 'Episode analyzed successfully' + (hasStartupData ? ' with personalized insights' : '')
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
