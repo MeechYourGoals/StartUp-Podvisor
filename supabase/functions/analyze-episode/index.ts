@@ -306,37 +306,44 @@ INSTRUCTIONS:
       }
     }
 
-    // Step 8: Generate personalized insights if startup profile provided with meaningful data
-    const hasStartupData = startupProfile && (
-      startupProfile.company_name || 
-      startupProfile.stage || 
-      startupProfile.description
-    );
-    
-    if (hasStartupData) {
-      console.log('Generating personalized insights...');
-      
-      // Fetch the inserted lessons
-      const { data: insertedLessons, error: fetchError } = await supabase
-        .from('lessons')
-        .select('id, lesson_text')
-        .eq('episode_id', episode.id);
+    // Step 8: Default Chravel profile for personalized insights
+    const chravelDefaultProfile = {
+      company_name: "Chravel",
+      company_website: "https://www.chravelapp.com",
+      stage: "Pre-seed",
+      funding_raised: "Bootstrapped/Pre-seed",
+      employee_count: 5,
+      industry: "Travel Tech / Group Collaboration",
+      description: "Chravel is the AI-powered hub for group adventures. We solve the chaos of group travel coordination where people juggle 15+ apps and spend 16 hours planning trips. Our platform combines shared calendars, file management, payment splitting, and an AI concierge with full trip context into one unified solution. Like Microsoft's Office 365 streamlines work, Chravel is 'Travel 365' for out-of-office coordination. Target markets include consumer group travel ($400B+), corporate/professional travel ($4.7B), and large-scale events ($750B). Key challenges: achieving product-market fit, driving user adoption, and building network effects in a crowded travel tech space."
+    };
 
-      if (fetchError || !insertedLessons) {
-        console.error('Error fetching lessons for personalization:', fetchError);
-      } else {
-        // Generate personalized insights for each lesson
-        const personalizedInsights = [];
-        
-        for (const lesson of insertedLessons) {
-          const personalizationPrompt = `
+    // Use provided profile, or default to Chravel
+    const hasCustomProfile = startupProfile && (startupProfile.company_name || startupProfile.stage);
+    const profileToUse = hasCustomProfile ? startupProfile : chravelDefaultProfile;
+    
+    console.log('Generating personalized insights...');
+    
+    // Fetch the inserted lessons
+    const { data: insertedLessons, error: fetchError } = await supabase
+      .from('lessons')
+      .select('id, lesson_text')
+      .eq('episode_id', episode.id);
+
+    if (fetchError || !insertedLessons) {
+      console.error('Error fetching lessons for personalization:', fetchError);
+    } else {
+      // Generate personalized insights for each lesson
+      const personalizedInsights = [];
+      
+      for (const lesson of insertedLessons) {
+        const personalizationPrompt = `
 Startup Context:
-- Company: ${startupProfile.company_name}
-- Stage: ${startupProfile.stage}
-- Funding: ${startupProfile.funding_raised || 'Not specified'}
-- Team Size: ${startupProfile.employee_count || 'Not specified'}
-- Industry: ${startupProfile.industry || 'Not specified'}
-- Description: ${startupProfile.description}
+- Company: ${profileToUse.company_name}
+- Stage: ${profileToUse.stage}
+- Funding: ${profileToUse.funding_raised || 'Not specified'}
+- Team Size: ${profileToUse.employee_count || 'Not specified'}
+- Industry: ${profileToUse.industry || 'Not specified'}
+- Description: ${profileToUse.description}
 
 Universal Lesson from Episode:
 "${lesson.lesson_text}"
@@ -400,14 +407,13 @@ Make it tactical and specific to their company stage, industry, and challenges.`
           if (insightsError) {
             console.error('Error inserting personalized insights:', insightsError);
           }
-        }
       }
     }
 
     return new Response(JSON.stringify({ 
       success: true, 
       episodeId: episode.id,
-      message: 'Episode analyzed successfully' + (hasStartupData ? ' with personalized insights' : '')
+      message: 'Episode analyzed successfully with personalized insights'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

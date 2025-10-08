@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, TrendingUp, MoreVertical, Eye, Bookmark, Download, Copy, Youtube, Headphones } from "lucide-react";
+import { ExternalLink, TrendingUp, MoreVertical, Eye, Bookmark, Download, Copy, Youtube, Headphones, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,6 +79,37 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
       console.error('Error fetching episodes:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (episodeId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!confirm('Delete this episode analysis? This will also remove all associated lessons, callouts, and personalized insights.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('episodes')
+        .delete()
+        .eq('id', episodeId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Analysis deleted",
+        description: "Episode and all associated data have been removed.",
+      });
+
+      fetchEpisodes();
+    } catch (error) {
+      console.error('Error deleting episode:', error);
+      toast({
+        title: "Delete failed",
+        description: "Could not delete the episode. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -243,12 +274,20 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
                           <Download className="w-4 h-4" />
                           <span className="ml-2">Export Episode</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => handleCopyLink(episode.url, e)}>
-                          <Copy className="w-4 h-4" />
-                          <span className="ml-2">Copy Link</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      <DropdownMenuItem onClick={(e) => handleCopyLink(episode.url, e)}>
+                        <Copy className="w-4 h-4" />
+                        <span className="ml-2">Copy Link</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={(e) => handleDelete(episode.id, e)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span className="ml-2">Delete Analysis</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   </div>
                 </TableCell>
               </TableRow>
