@@ -20,28 +20,44 @@ export const AnalysisForm = () => {
   const [episodeUrl, setEpisodeUrl] = useState("");
   const [podcastName, setPodcastName] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [progress, setProgress] = useState("");
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!episodeUrl || !podcastName) {
+    if (!episodeUrl.trim()) {
       toast({
-        title: "Missing information",
-        description: "Please provide both episode URL and podcast name",
+        title: "Missing Information",
+        description: "Please enter an episode URL",
         variant: "destructive",
       });
       return;
     }
 
     setIsAnalyzing(true);
+    setProgress("Analyzing episode...");
 
     try {
+      setProgress("Fetching episode data...");
       const { data, error } = await supabase.functions.invoke('analyze-episode', {
-        body: { episodeUrl, podcastName }
+        body: { 
+          episodeUrl, 
+          podcastName: podcastName.trim() || undefined 
+        }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Analysis error:", error);
+        toast({
+          title: "Analysis Failed",
+          description: error.message || "Failed to analyze episode. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setProgress("Extracting insights...");
 
       toast({
         title: "Analysis complete!",
@@ -62,6 +78,7 @@ export const AnalysisForm = () => {
       });
     } finally {
       setIsAnalyzing(false);
+      setProgress("");
     }
   };
 
@@ -81,11 +98,11 @@ export const AnalysisForm = () => {
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label htmlFor="podcastName" className="text-sm font-medium">
-              Podcast Series
+              Podcast Series <span className="text-muted-foreground text-xs">(optional)</span>
             </label>
             <Input
               id="podcastName"
-              placeholder="e.g., Crucible Moments"
+              placeholder="e.g., Crucible Moments (auto-detected if left blank)"
               value={podcastName}
               onChange={(e) => setPodcastName(e.target.value)}
               disabled={isAnalyzing}
@@ -96,6 +113,9 @@ export const AnalysisForm = () => {
                 <option key={podcast} value={podcast} />
               ))}
             </datalist>
+            <p className="text-xs text-muted-foreground">
+              Leave blank to auto-detect from the episode
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -122,7 +142,7 @@ export const AnalysisForm = () => {
           {isAnalyzing ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Analyzing Episode...
+              {progress || "Analyzing Episode..."}
             </>
           ) : (
             <>

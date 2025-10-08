@@ -21,78 +21,61 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
+    if (!episodeUrl) {
+      throw new Error('Episode URL is required');
+    }
+
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Step 1: Find or create podcast
-    let podcastId: string;
-    const { data: existingPodcast } = await supabase
-      .from('podcasts')
-      .select('id')
-      .eq('name', podcastName)
-      .single();
-
-    if (existingPodcast) {
-      podcastId = existingPodcast.id;
-    } else {
-      const { data: newPodcast, error: podcastError } = await supabase
-        .from('podcasts')
-        .insert({ name: podcastName })
-        .select('id')
-        .single();
+    // Extract video ID for YouTube URLs
+    let videoId = '';
+    let videoTitle = '';
+    if (episodeUrl.includes('youtube.com') || episodeUrl.includes('youtu.be')) {
+      const urlParams = new URLSearchParams(new URL(episodeUrl).search);
+      videoId = urlParams.get('v') || episodeUrl.split('/').pop()?.split('?')[0] || '';
       
-      if (podcastError) throw podcastError;
-      podcastId = newPodcast.id;
+      // Fetch YouTube video metadata
+      try {
+        const ytResponse = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(episodeUrl)}&format=json`);
+        if (ytResponse.ok) {
+          const ytData = await ytResponse.json();
+          videoTitle = ytData.title || '';
+        }
+      } catch (e) {
+        console.log('Could not fetch YouTube metadata:', e);
+      }
     }
 
-    // Step 2: Use AI to analyze the episode
+    // Step 2: Use AI to analyze the episode with tool calling
     const systemPrompt = `You are an expert at extracting founder lessons from podcast episodes. 
-Your task is to analyze podcast content and extract:
-1. Episode metadata (title, date if mentioned)
-2. Founder name(s) and company information
-3. Company details (stage, funding, valuation if mentioned, employee count, industry)
-4. 10 tactical, actionable lessons with high impact
-5. 5 relevant callouts for a travel/events startup (chravelapp.com)
+Your task is to deeply analyze podcast content and extract comprehensive, actionable insights.
 
-Return your analysis in JSON format with this structure:
-{
-  "episodeTitle": "string",
-  "releaseDate": "YYYY-MM-DD or null",
-  "founderNames": "string (comma separated)",
-  "company": {
-    "name": "string",
-    "foundingYear": number or null,
-    "currentStage": "string",
-    "fundingRaised": "string",
-    "valuation": "string",
-    "employeeCount": number or null,
-    "industry": "string",
-    "status": "Active/Acquired/Shutdown"
-  },
-  "lessons": [
-    {
-      "text": "3-4 sentence detailed lesson with specific context",
-      "impactScore": 1-10,
-      "actionabilityScore": 1-10,
-      "category": "string",
-      "founderAttribution": "string"
-    }
-  ],
-  "chavelCallouts": [
-    {
-      "text": "Specific callout relevant to travel/events startup",
-      "relevanceScore": 1-10
-    }
-  ]
-}`;
+CRITICAL REQUIREMENTS:
+- Extract EXACTLY 10 tactical lessons ranked by actionability and impact (each 3-4 sentences with specific context)
+- Extract EXACTLY 5 callouts relevant to a travel/events startup (chravelapp.com)
+- Research and include actual company data (funding, valuation, stage, employee count)
+- Cite specific examples and stories from the founder
+- If data is unavailable, mark as "Unknown" or "Not disclosed"
+- DO NOT provide mock or placeholder data
+- Extract the podcast series name from the episode context if not provided`;
 
-    const userPrompt = `Analyze this podcast episode URL: ${episodeUrl}
+    const userPrompt = `Analyze this podcast episode:
+URL: ${episodeUrl}
+${videoTitle ? `Title: ${videoTitle}` : ''}
+${podcastName ? `Podcast Series: ${podcastName}` : 'Podcast Series: Please extract from the episode'}
 
-Podcast Series: ${podcastName}
-
-Extract all the information according to the system prompt. If you cannot access the actual content, provide a realistic mock analysis for demonstration purposes.`;
+INSTRUCTIONS:
+1. Watch/listen to the episode and extract real insights from the actual content
+2. Identify the founder(s) and their company
+3. Research the company's current metrics (funding, valuation, stage, employees, industry)
+4. Extract EXACTLY 10 tactical, actionable lessons with specific context from the founder's stories
+5. Extract EXACTLY 5 callouts specifically relevant to chravelapp.com (a travel/events startup)
+6. Rank lessons by actionability (1-10) and impact (1-10)
+7. Include founder attribution for each lesson
+8. If you cannot access the content, return an error - do NOT provide mock data`;
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -106,19 +89,124 @@ Extract all the information according to the system prompt. If you cannot access
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "extract_episode_data",
+              description: "Extract structured data from podcast episode",
+              parameters: {
+                type: "object",
+                properties: {
+                  podcastSeriesName: { type: "string", description: "Name of the podcast series" },
+                  episodeTitle: { type: "string", description: "Episode title" },
+                  releaseDate: { type: "string", description: "Release date in YYYY-MM-DD format", nullable: true },
+                  founderNames: { type: "string", description: "Comma-separated founder names" },
+                  company: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      foundingYear: { type: "number", nullable: true },
+                      currentStage: { type: "string", description: "e.g., Seed, Series A, Public, Acquired" },
+                      fundingRaised: { type: "string", description: "Total funding raised, e.g., $50M" },
+                      valuation: { type: "string", description: "Current or last known valuation" },
+                      employeeCount: { type: "number", nullable: true },
+                      industry: { type: "string" },
+                      status: { type: "string", enum: ["Active", "Acquired", "Shutdown"] }
+                    },
+                    required: ["name", "currentStage", "fundingRaised", "valuation", "industry", "status"]
+                  },
+                  lessons: {
+                    type: "array",
+                    description: "Exactly 10 tactical lessons",
+                    minItems: 10,
+                    maxItems: 10,
+                    items: {
+                      type: "object",
+                      properties: {
+                        text: { type: "string", description: "3-4 sentence detailed lesson with specific context" },
+                        impactScore: { type: "number", minimum: 1, maximum: 10 },
+                        actionabilityScore: { type: "number", minimum: 1, maximum: 10 },
+                        category: { type: "string", description: "e.g., Product, Growth, Fundraising, Team" },
+                        founderAttribution: { type: "string", description: "Founder's name" }
+                      },
+                      required: ["text", "impactScore", "actionabilityScore", "category", "founderAttribution"]
+                    }
+                  },
+                  chavelCallouts: {
+                    type: "array",
+                    description: "Exactly 5 callouts relevant to travel/events startup",
+                    minItems: 5,
+                    maxItems: 5,
+                    items: {
+                      type: "object",
+                      properties: {
+                        text: { type: "string", description: "Specific callout relevant to travel/events" },
+                        relevanceScore: { type: "number", minimum: 1, maximum: 10 }
+                      },
+                      required: ["text", "relevanceScore"]
+                    }
+                  }
+                },
+                required: ["podcastSeriesName", "episodeTitle", "founderNames", "company", "lessons", "chavelCallouts"],
+                additionalProperties: false
+              }
+            }
+          }
+        ],
+        tool_choice: { type: "function", function: { name: "extract_episode_data" } }
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error('AI API error:', aiResponse.status, errorText);
-      throw new Error('Failed to analyze episode with AI');
+      
+      if (aiResponse.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again in a few moments.');
+      }
+      if (aiResponse.status === 402) {
+        throw new Error('AI credits depleted. Please add credits to continue.');
+      }
+      throw new Error(`AI analysis failed: ${errorText}`);
     }
 
     const aiData = await aiResponse.json();
-    const analysis = JSON.parse(aiData.choices[0].message.content);
+    console.log('AI Response:', JSON.stringify(aiData, null, 2));
+    
+    // Extract from tool calls instead of content
+    const toolCall = aiData.choices[0]?.message?.tool_calls?.[0];
+    if (!toolCall) {
+      console.error('No tool call in response:', aiData);
+      throw new Error('AI did not return structured data. Please try again.');
+    }
+    
+    const analysis = JSON.parse(toolCall.function.arguments);
+    console.log('Parsed analysis:', JSON.stringify(analysis, null, 2));
 
-    // Step 3: Create or find company
+    // Step 3: Find or create podcast
+    const finalPodcastName = podcastName || analysis.podcastSeriesName;
+    let podcastId: string;
+    const { data: existingPodcast } = await supabase
+      .from('podcasts')
+      .select('id')
+      .eq('name', finalPodcastName)
+      .maybeSingle();
+
+    if (existingPodcast) {
+      podcastId = existingPodcast.id;
+    } else {
+      const { data: newPodcast, error: podcastError } = await supabase
+        .from('podcasts')
+        .insert({ name: finalPodcastName })
+        .select('id')
+        .single();
+      
+      if (podcastError) throw podcastError;
+      podcastId = newPodcast.id;
+    }
+
+    // Step 4: Create or find company
     let companyId: string | null = null;
     if (analysis.company?.name) {
       const { data: existingCompany } = await supabase
@@ -150,7 +238,7 @@ Extract all the information according to the system prompt. If you cannot access
       }
     }
 
-    // Step 4: Create episode
+    // Step 5: Create episode
     const { data: episode, error: episodeError } = await supabase
       .from('episodes')
       .insert({
@@ -167,7 +255,7 @@ Extract all the information according to the system prompt. If you cannot access
 
     if (episodeError) throw episodeError;
 
-    // Step 5: Insert lessons
+    // Step 6: Insert lessons
     if (analysis.lessons?.length > 0) {
       const lessonsToInsert = analysis.lessons.map((lesson: any) => ({
         episode_id: episode.id,
@@ -185,7 +273,7 @@ Extract all the information according to the system prompt. If you cannot access
       if (lessonsError) throw lessonsError;
     }
 
-    // Step 6: Insert chavel callouts
+    // Step 7: Insert chavel callouts
     if (analysis.chavelCallouts?.length > 0) {
       const calloutsToInsert = analysis.chavelCallouts.map((callout: any) => ({
         episode_id: episode.id,
