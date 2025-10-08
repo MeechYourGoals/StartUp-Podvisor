@@ -21,6 +21,14 @@ interface Callout {
   relevance_score: number;
 }
 
+interface PersonalizedInsight {
+  id: string;
+  lesson_id: string;
+  personalized_text: string;
+  relevance_score: number;
+  action_items: string[];
+}
+
 interface Episode {
   id: string;
   title: string;
@@ -48,6 +56,7 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [callouts, setCallouts] = useState<Callout[]>([]);
+  const [personalizedInsights, setPersonalizedInsights] = useState<PersonalizedInsight[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -98,6 +107,24 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
 
         if (calloutsError) throw calloutsError;
         setCallouts(calloutsData || []);
+
+        // Fetch personalized insights
+        const { data: insightsData, error: insightsError } = await supabase
+          .from('personalized_insights')
+          .select('*')
+          .in('lesson_id', (lessonsData || []).map(l => l.id));
+
+        if (!insightsError && insightsData) {
+          setPersonalizedInsights(insightsData.map(insight => ({
+            id: insight.id,
+            lesson_id: insight.lesson_id,
+            personalized_text: insight.personalized_text,
+            relevance_score: insight.relevance_score,
+            action_items: Array.isArray(insight.action_items) 
+              ? (insight.action_items as string[])
+              : []
+          })));
+        }
       } catch (error) {
         console.error('Error fetching episode details:', error);
       } finally {
@@ -216,11 +243,67 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
         </Card>
       )}
 
+      {personalizedInsights.length > 0 && (
+        <Card className="p-8 bg-gradient-to-br from-primary/5 to-accent/5">
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+            <Target className="w-6 h-6 text-primary" />
+            Personalized for Your Startup ({personalizedInsights.length})
+          </h2>
+          <div className="space-y-6">
+            {lessons.map((lesson) => {
+              const insight = personalizedInsights.find(i => i.lesson_id === lesson.id);
+              if (!insight) return null;
+              
+              return (
+                <div key={lesson.id} className="space-y-4">
+                  <div className="p-5 bg-card rounded-lg border-2 border-primary/20">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg mb-2">{lesson.lesson_text}</h3>
+                        <div className="flex gap-2 mb-3">
+                          <Badge>Impact: {lesson.impact_score}/10</Badge>
+                          <Badge>Actionability: {lesson.actionability_score}/10</Badge>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-4 rounded-lg">
+                      <div className="flex items-start gap-2 mb-3">
+                        <Lightbulb className="w-5 h-5 text-primary flex-shrink-0 mt-1" />
+                        <div className="flex-1">
+                          <p className="font-medium text-primary mb-1">For Your Startup:</p>
+                          <p className="text-foreground leading-relaxed">{insight.personalized_text}</p>
+                        </div>
+                      </div>
+                      
+                      {insight.action_items && insight.action_items.length > 0 && (
+                        <div className="mt-4">
+                          <p className="font-medium text-sm mb-2">✅ Action Items:</p>
+                          <ol className="list-decimal list-inside space-y-1 text-sm">
+                            {insight.action_items.map((item, idx) => (
+                              <li key={idx} className="text-muted-foreground">{item}</li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
+                      
+                      <div className="mt-3">
+                        <Badge variant="outline">Relevance: {insight.relevance_score}/10</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       {callouts.length > 0 && (
         <Card className="p-8 bg-accent/5">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
             <Target className="w-6 h-6 text-accent" />
-            Relevant for Chavel ({callouts.length})
+            Relevant for Chravel ({callouts.length})
           </h2>
           <div className="space-y-4">
             {callouts.map((callout) => (

@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { StartupProfileForm } from "./StartupProfileForm";
 
 const POPULAR_PODCASTS = [
   "Crucible Moments",
@@ -17,15 +18,49 @@ const POPULAR_PODCASTS = [
   "20VC",
 ];
 
+interface SavedProfile {
+  id: string;
+  company_name: string;
+  company_website: string | null;
+  stage: string;
+  funding_raised: string | null;
+  valuation: string | null;
+  employee_count: number | null;
+  industry: string | null;
+  description: string;
+}
+
 export const AnalysisForm = () => {
   const [episodeUrl, setEpisodeUrl] = useState("");
   const [podcastName, setPodcastName] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState("");
   const [inputMode, setInputMode] = useState<"series" | "url">("url");
+  const [step, setStep] = useState<"episode" | "profile">("episode");
+  const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
+  const [startupContext, setStartupContext] = useState<any>(null);
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchSavedProfiles();
+  }, []);
+
+  const fetchSavedProfiles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("user_startup_profiles")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      if (error) throw error;
+      setSavedProfiles(data || []);
+    } catch (error) {
+      console.error("Error fetching saved profiles:", error);
+    }
+  };
+
+  const handleEpisodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!episodeUrl.trim()) {
@@ -37,15 +72,39 @@ export const AnalysisForm = () => {
       return;
     }
 
+    setStep("profile");
+  };
+
+  const handleProfileSubmit = async (profile: any, saveProfile: boolean) => {
+    setStartupContext(profile);
+
+    if (saveProfile) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        await supabase.from("user_startup_profiles").insert([{
+          ...profile,
+          user_id: user?.id
+        }]);
+        fetchSavedProfiles();
+      } catch (error) {
+        console.error("Error saving profile:", error);
+      }
+    }
+
+    await analyzeWithContext(profile);
+  };
+
+  const analyzeWithContext = async (profile: any) => {
     setIsAnalyzing(true);
-    setProgress("Analyzing episode...");
+    setProgress("Analyzing episode with your startup context...");
 
     try {
       setProgress("Fetching episode data...");
       const { data, error } = await supabase.functions.invoke('analyze-episode', {
         body: { 
           episodeUrl, 
-          podcastName: podcastName.trim() || undefined 
+          podcastName: podcastName.trim() || undefined,
+          startupProfile: profile
         }
       });
 
@@ -59,17 +118,18 @@ export const AnalysisForm = () => {
         return;
       }
 
-      setProgress("Extracting insights...");
+      setProgress("Generating personalized insights...");
 
       toast({
         title: "Analysis complete!",
-        description: "Episode has been analyzed and added to the database",
+        description: "Episode analyzed with personalized insights for your startup",
       });
 
       setEpisodeUrl("");
       setPodcastName("");
+      setStep("episode");
+      setStartupContext(null);
       
-      // Trigger a refresh of the episodes table
       window.dispatchEvent(new CustomEvent('episodeAnalyzed'));
     } catch (error) {
       console.error('Analysis error:', error);
@@ -84,9 +144,28 @@ export const AnalysisForm = () => {
     }
   };
 
+  if (step === "profile") {
+    return (
+      <div className="space-y-4">
+        <Button
+          variant="ghost"
+          onClick={() => setStep("episode")}
+          className="mb-4"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Episode URL
+        </Button>
+        <StartupProfileForm
+          onSubmit={handleProfileSubmit}
+          savedProfiles={savedProfiles}
+        />
+      </div>
+    );
+  }
+
   return (
     <Card className="p-8 shadow-lg border-primary/10 hover:shadow-xl transition-shadow">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleEpisodeSubmit} className="space-y-6">
         <div className="space-y-2 text-center">
           <h2 className="text-2xl font-bold flex items-center justify-center gap-2">
             <Sparkles className="w-6 h-6 text-primary" />

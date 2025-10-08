@@ -13,8 +13,8 @@ serve(async (req) => {
   }
 
   try {
-    const { episodeUrl, podcastName } = await req.json();
-    console.log('Analyzing episode:', { episodeUrl, podcastName });
+    const { episodeUrl, podcastName, startupProfile } = await req.json();
+    console.log('Analyzing episode:', { episodeUrl, podcastName, hasProfile: !!startupProfile });
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!lovableApiKey) {
@@ -306,10 +306,102 @@ INSTRUCTIONS:
       }
     }
 
+    // Step 8: Generate personalized insights if startup profile provided
+    if (startupProfile) {
+      console.log('Generating personalized insights...');
+      
+      // Fetch the inserted lessons
+      const { data: insertedLessons, error: fetchError } = await supabase
+        .from('lessons')
+        .select('id, lesson_text')
+        .eq('episode_id', episode.id);
+
+      if (fetchError || !insertedLessons) {
+        console.error('Error fetching lessons for personalization:', fetchError);
+      } else {
+        // Generate personalized insights for each lesson
+        const personalizedInsights = [];
+        
+        for (const lesson of insertedLessons) {
+          const personalizationPrompt = `
+Startup Context:
+- Company: ${startupProfile.company_name}
+- Stage: ${startupProfile.stage}
+- Funding: ${startupProfile.funding_raised || 'Not specified'}
+- Team Size: ${startupProfile.employee_count || 'Not specified'}
+- Industry: ${startupProfile.industry || 'Not specified'}
+- Description: ${startupProfile.description}
+
+Universal Lesson from Episode:
+"${lesson.lesson_text}"
+
+Generate a personalized insight in JSON format:
+{
+  "personalizedText": "2-3 sentences explaining how this lesson specifically applies to their startup context and what they should focus on",
+  "relevanceScore": 1-10 (how relevant is this lesson to their specific situation),
+  "actionItems": ["Specific action 1", "Specific action 2", "Specific action 3"]
+}
+
+Make it tactical and specific to their company stage, industry, and challenges.`;
+
+          try {
+            const personalizationResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${lovableApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-2.5-flash',
+                messages: [
+                  { role: 'user', content: personalizationPrompt }
+                ],
+              }),
+            });
+
+            if (personalizationResponse.ok) {
+              const personalizationData = await personalizationResponse.json();
+              const content = personalizationData.choices?.[0]?.message?.content || '';
+              
+              try {
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  const personalizedData = JSON.parse(jsonMatch[0]);
+                  
+                  personalizedInsights.push({
+                    lesson_id: lesson.id,
+                    startup_profile_id: null, // Can be linked later if profile was saved
+                    personalized_text: personalizedData.personalizedText,
+                    relevance_score: Math.max(1, Math.min(10, Math.round(Number(personalizedData.relevanceScore) || 5))),
+                    action_items: personalizedData.actionItems || [],
+                  });
+                }
+              } catch (parseError) {
+                console.error('Error parsing personalized insight:', parseError);
+              }
+            }
+          } catch (personalizationError) {
+            console.error('Error generating personalized insight:', personalizationError);
+          }
+        }
+
+        // Insert personalized insights
+        if (personalizedInsights.length > 0) {
+          const { error: insightsError } = await supabase
+            .from('personalized_insights')
+            .insert(personalizedInsights);
+
+          if (insightsError) {
+            console.error('Error inserting personalized insights:', insightsError);
+          }
+        }
+      }
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       episodeId: episode.id,
-      message: 'Episode analyzed successfully'
+      message: 'Episode analyzed successfully' + (startupProfile ? ' with personalized insights' : '')
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

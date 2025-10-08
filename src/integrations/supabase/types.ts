@@ -300,6 +300,51 @@ export type Database = {
           },
         ]
       }
+      personalized_insights: {
+        Row: {
+          action_items: Json | null
+          created_at: string | null
+          id: string
+          lesson_id: string | null
+          personalized_text: string
+          relevance_score: number | null
+          startup_profile_id: string | null
+        }
+        Insert: {
+          action_items?: Json | null
+          created_at?: string | null
+          id?: string
+          lesson_id?: string | null
+          personalized_text: string
+          relevance_score?: number | null
+          startup_profile_id?: string | null
+        }
+        Update: {
+          action_items?: Json | null
+          created_at?: string | null
+          id?: string
+          lesson_id?: string | null
+          personalized_text?: string
+          relevance_score?: number | null
+          startup_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personalized_insights_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "personalized_insights_startup_profile_id_fkey"
+            columns: ["startup_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_startup_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       podcasts: {
         Row: {
           created_at: string | null
@@ -324,6 +369,51 @@ export type Database = {
         }
         Relationships: []
       }
+      user_startup_profiles: {
+        Row: {
+          company_name: string
+          company_website: string | null
+          created_at: string | null
+          description: string
+          employee_count: number | null
+          funding_raised: string | null
+          id: string
+          industry: string | null
+          stage: Database["public"]["Enums"]["startup_stage"]
+          updated_at: string | null
+          user_id: string | null
+          valuation: string | null
+        }
+        Insert: {
+          company_name: string
+          company_website?: string | null
+          created_at?: string | null
+          description: string
+          employee_count?: number | null
+          funding_raised?: string | null
+          id?: string
+          industry?: string | null
+          stage: Database["public"]["Enums"]["startup_stage"]
+          updated_at?: string | null
+          user_id?: string | null
+          valuation?: string | null
+        }
+        Update: {
+          company_name?: string
+          company_website?: string | null
+          created_at?: string | null
+          description?: string
+          employee_count?: number | null
+          funding_raised?: string | null
+          id?: string
+          industry?: string | null
+          stage?: Database["public"]["Enums"]["startup_stage"]
+          updated_at?: string | null
+          user_id?: string | null
+          valuation?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -332,7 +422,14 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      startup_stage:
+        | "pre_seed"
+        | "seed"
+        | "series_a"
+        | "series_b_plus"
+        | "growth"
+        | "public"
+        | "bootstrapped"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -459,6 +556,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      startup_stage: [
+        "pre_seed",
+        "seed",
+        "series_a",
+        "series_b_plus",
+        "growth",
+        "public",
+        "bootstrapped",
+      ],
+    },
   },
 } as const
