@@ -57,7 +57,13 @@ interface BookmarkedEpisode {
   };
 }
 
-export const ProfileSettings = ({ onSelectEpisode }: { onSelectEpisode?: (id: string) => void }) => {
+export const ProfileSettings = ({ 
+  onSelectEpisode, 
+  defaultTab = "profiles" 
+}: { 
+  onSelectEpisode?: (id: string) => void;
+  defaultTab?: "profiles" | "bookmarks";
+}) => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { signOut } = useAuth();
@@ -445,7 +451,7 @@ export const ProfileSettings = ({ onSelectEpisode }: { onSelectEpisode?: (id: st
           </div>
         </SheetHeader>
 
-        <Tabs defaultValue="profiles" className="mt-6">
+        <Tabs defaultValue={defaultTab} className="mt-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="profiles">Startup Profiles</TabsTrigger>
             <TabsTrigger value="bookmarks">Bookmarks</TabsTrigger>
