@@ -7,18 +7,26 @@ import { EpisodeDetail } from "@/components/EpisodeDetail";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Bookmark } from "lucide-react";
+import { Loader2, Bookmark, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 
 const Index = () => {
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/auth");
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -48,6 +56,21 @@ const Index = () => {
             </Button>
           </SheetTrigger>
           <SheetContent className="w-[500px] sm:w-[600px] overflow-y-auto">
+            <SheetHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <SheetTitle>My Bookmarks & Settings</SheetTitle>
+                  <SheetDescription>
+                    Manage your bookmarks and startup profiles
+                  </SheetDescription>
+                </div>
+                <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </Button>
+              </div>
+            </SheetHeader>
+            
             <ProfileSettings defaultTab="bookmarks" onSelectEpisode={setSelectedEpisodeId} />
           </SheetContent>
         </Sheet>

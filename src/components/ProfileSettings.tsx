@@ -3,16 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Settings, Plus, Trash2, Edit2, LogOut, FolderPlus } from "lucide-react";
+import { Plus, Trash2, Edit2, FolderPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,8 +57,6 @@ export const ProfileSettings = ({
   defaultTab?: "profiles" | "bookmarks";
 }) => {
   const { toast } = useToast();
-  const navigate = useNavigate();
-  const { signOut } = useAuth();
   const [profiles, setProfiles] = useState<StartupProfile[]>([]);
   const [editingProfile, setEditingProfile] = useState<StartupProfile | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -238,19 +228,6 @@ export const ProfileSettings = ({
     setIsCreating(true);
   };
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      toast({ title: "Signed out successfully" });
-      navigate("/auth");
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to sign out",
-        variant: "destructive",
-      });
-    }
-  };
 
   // Bookmark management functions
   const fetchFolders = async () => {
@@ -429,33 +406,11 @@ export const ProfileSettings = ({
   };
 
   return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <Settings className="h-5 w-5" />
-        </Button>
-      </SheetTrigger>
-      <SheetContent className="w-[500px] sm:w-[600px] overflow-y-auto">
-        <SheetHeader>
-          <div className="flex justify-between items-start">
-            <div>
-              <SheetTitle>Settings</SheetTitle>
-              <SheetDescription>
-                Manage your bookmarks and startup profiles
-              </SheetDescription>
-            </div>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
-          </div>
-        </SheetHeader>
-
-        <Tabs defaultValue={defaultTab} className="mt-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="profiles">Startup Profiles</TabsTrigger>
-            <TabsTrigger value="bookmarks">Bookmarks</TabsTrigger>
-          </TabsList>
+    <Tabs defaultValue={defaultTab} className="mt-6">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="profiles">Startup Profiles</TabsTrigger>
+        <TabsTrigger value="bookmarks">Bookmarks</TabsTrigger>
+      </TabsList>
 
           <TabsContent value="profiles" className="space-y-4">
             {!isCreating ? (
@@ -734,9 +689,7 @@ export const ProfileSettings = ({
               folder={editingFolder}
               onSave={handleSaveFolder}
             />
-          </TabsContent>
-        </Tabs>
-      </SheetContent>
-    </Sheet>
+      </TabsContent>
+    </Tabs>
   );
 };
