@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Sheet,
   SheetContent,
@@ -10,7 +12,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Settings, Plus, Trash2, Edit2 } from "lucide-react";
+import { Settings, Plus, Trash2, Edit2, LogOut } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +34,8 @@ interface StartupProfile {
 
 export const ProfileSettings = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [profiles, setProfiles] = useState<StartupProfile[]>([]);
   const [editingProfile, setEditingProfile] = useState<StartupProfile | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -195,6 +199,20 @@ export const ProfileSettings = () => {
     setIsCreating(true);
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({ title: "Signed out successfully" });
+      navigate("/auth");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -204,10 +222,18 @@ export const ProfileSettings = () => {
       </SheetTrigger>
       <SheetContent className="w-[500px] sm:w-[600px] overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Settings</SheetTitle>
-          <SheetDescription>
-            Manage your bookmarks and startup profiles
-          </SheetDescription>
+          <div className="flex justify-between items-start">
+            <div>
+              <SheetTitle>Settings</SheetTitle>
+              <SheetDescription>
+                Manage your bookmarks and startup profiles
+              </SheetDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </SheetHeader>
 
         <Tabs defaultValue="profiles" className="mt-6">
