@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, TrendingUp, MoreVertical, Eye, Bookmark, Download, Copy, Youtube, Headphones, Trash2 } from "lucide-react";
+import { ExternalLink, TrendingUp, MoreVertical, Eye, Bookmark, Download, Copy, Youtube, Headphones, Trash2, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,10 +46,41 @@ interface EpisodesTableProps {
 
 export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
+  const [allEpisodes, setAllEpisodes] = useState<Episode[]>([]);
+  const [selectedIndustries, setSelectedIndustries] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [selectedExportId, setSelectedExportId] = useState<string | undefined>();
   const { toast } = useToast();
+
+  const parseIndustries = (industryString: string | null | undefined): string[] => {
+    if (!industryString) return [];
+    return [...new Set(
+      industryString
+        .split(/[,\/]/)
+        .map(i => i.trim())
+        .filter(Boolean)
+    )];
+  };
+
+  const toggleIndustryFilter = (industry: string) => {
+    setSelectedIndustries(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(industry)) {
+        newSet.delete(industry);
+      } else {
+        newSet.add(industry);
+      }
+      return newSet;
+    });
+  };
+
+  const filteredEpisodes = selectedIndustries.size === 0 
+    ? allEpisodes
+    : allEpisodes.filter(ep => {
+        const episodeIndustries = parseIndustries(ep.companies?.industry);
+        return episodeIndustries.some(ind => selectedIndustries.has(ind));
+      });
 
   const fetchEpisodes = async () => {
     try {
@@ -74,6 +105,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      setAllEpisodes(data || []);
       setEpisodes(data || []);
     } catch (error) {
       console.error('Error fetching episodes:', error);
@@ -91,7 +123,9 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
 
     // Optimistically remove from UI
     const previousEpisodes = episodes;
+    const previousAllEpisodes = allEpisodes;
     setEpisodes(prev => prev.filter(ep => ep.id !== episodeId));
+    setAllEpisodes(prev => prev.filter(ep => ep.id !== episodeId));
 
     try {
       const { data, error } = await supabase
@@ -115,6 +149,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
       console.error('Error deleting episode:', error);
       // Revert optimistic update on failure
       setEpisodes(previousEpisodes);
+      setAllEpisodes(previousAllEpisodes);
       toast({
         title: "Delete failed",
         description: "Could not delete the episode. Please try again.",
@@ -193,7 +228,10 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
                 Analyzed Episodes
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                {episodes.length} episode{episodes.length !== 1 ? 's' : ''} in database
+                {selectedIndustries.size > 0 
+                  ? `${filteredEpisodes.length} of ${allEpisodes.length} episodes`
+                  : `${allEpisodes.length} episode${allEpisodes.length !== 1 ? 's' : ''} in database`
+                }
               </p>
             </div>
             <Button
@@ -208,6 +246,33 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
             </Button>
           </div>
         </div>
+        {selectedIndustries.size > 0 && (
+          <div className="px-6 py-4 border-b bg-muted/20">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-muted-foreground">Active filters:</span>
+                {Array.from(selectedIndustries).map(industry => (
+                  <Badge 
+                    key={industry}
+                    variant="default"
+                    className="cursor-pointer"
+                    onClick={() => toggleIndustryFilter(industry)}
+                  >
+                    {industry}
+                    <X className="w-3 h-3 ml-1" />
+                  </Badge>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedIndustries(new Set())}
+              >
+                Show All ({allEpisodes.length})
+              </Button>
+            </div>
+          </div>
+        )}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -221,8 +286,8 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {episodes.map((episode) => (
-              <TableRow 
+            {filteredEpisodes.map((episode) => (
+              <TableRow
                 key={episode.id}
                 className="cursor-pointer hover:bg-muted/50 transition-colors"
                 onClick={() => onSelectEpisode(episode.id)}
@@ -246,7 +311,25 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
                     <Badge variant="secondary">{episode.companies.current_stage}</Badge>
                   ) : '-'}
                 </TableCell>
-                <TableCell>{episode.companies?.industry || '-'}</TableCell>
+                <TableCell>
+                  {episode.companies?.industry ? (
+                    <div className="flex flex-wrap gap-1">
+                      {parseIndustries(episode.companies.industry).map(industry => (
+                        <Badge
+                          key={industry}
+                          variant={selectedIndustries.has(industry) ? "default" : "outline"}
+                          className="cursor-pointer hover:bg-primary/80 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleIndustryFilter(industry);
+                          }}
+                        >
+                          {industry}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : '-'}
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
                     <BookmarkButton episodeId={episode.id} />
