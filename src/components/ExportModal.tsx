@@ -21,7 +21,7 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
       .select(`
         *,
         companies(*),
-        lessons(*),
+        lessons(*, personalized_insights(*)),
         chavel_callouts(*)
       `)
       .eq('id', id)
@@ -35,7 +35,7 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
       .select(`
         *,
         companies(*),
-        lessons(*),
+        lessons(*, personalized_insights(*)),
         chavel_callouts(*)
       `)
       .order('created_at', { ascending: false });
@@ -69,10 +69,14 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
       const data = episodeId ? [await fetchEpisodeData(episodeId)] : await fetchAllData();
       
       const csvRows = [];
-      csvRows.push(['Episode Title', 'Company', 'Founders', 'Release Date', 'Lesson', 'Category', 'Impact', 'Actionability', 'URL']);
+      csvRows.push(['Episode Title', 'Company', 'Founders', 'Release Date', 'Lesson', 'Category', 'Impact', 'Actionability', 'Personalized Insight', 'Action Items', 'Insight Relevance', 'URL']);
       
       data?.forEach((episode: any) => {
         episode.lessons?.forEach((lesson: any) => {
+          const insight = lesson.personalized_insights?.[0];
+          const actionItems = insight?.action_items ? 
+            (Array.isArray(insight.action_items) ? insight.action_items.join('; ') : JSON.stringify(insight.action_items)) : '';
+          
           csvRows.push([
             `"${episode.title?.replace(/"/g, '""') || ''}"`,
             `"${episode.companies?.name?.replace(/"/g, '""') || ''}"`,
@@ -82,6 +86,9 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
             lesson.category || '',
             lesson.impact_score || '',
             lesson.actionability_score || '',
+            `"${insight?.personalized_text?.replace(/"/g, '""') || ''}"`,
+            `"${actionItems.replace(/"/g, '""')}"`,
+            insight?.relevance_score || '',
             episode.url || ''
           ]);
         });
@@ -125,7 +132,25 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
             markdown += `${idx + 1}. **${lesson.lesson_text}**\n`;
             markdown += `   - Category: ${lesson.category || 'N/A'}\n`;
             markdown += `   - Impact: ${lesson.impact_score}/10\n`;
-            markdown += `   - Actionability: ${lesson.actionability_score}/10\n\n`;
+            markdown += `   - Actionability: ${lesson.actionability_score}/10\n`;
+            
+            const insight = lesson.personalized_insights?.[0];
+            if (insight) {
+              markdown += `\n   **💡 Personalized for Your Startup:**\n`;
+              markdown += `   ${insight.personalized_text}\n`;
+              
+              if (insight.action_items && Array.isArray(insight.action_items)) {
+                markdown += `\n   **✅ Action Items:**\n`;
+                insight.action_items.forEach((item: string, i: number) => {
+                  markdown += `   ${i + 1}. ${item}\n`;
+                });
+              }
+              
+              if (insight.relevance_score) {
+                markdown += `\n   *Relevance: ${insight.relevance_score}/10*\n`;
+              }
+            }
+            markdown += `\n`;
           });
         }
         
