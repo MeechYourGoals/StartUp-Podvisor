@@ -10,13 +10,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { Loader2, Bookmark, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const Index = () => {
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
@@ -49,31 +50,33 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <div className="fixed top-4 right-4 z-50 flex gap-2">
-        <Sheet>
-          <SheetTrigger asChild>
+        <Dialog>
+          <DialogTrigger asChild>
             <Button variant="outline" size="icon">
               <Bookmark className="h-5 w-5" />
             </Button>
-          </SheetTrigger>
-          <SheetContent className="w-[500px] sm:w-[600px] overflow-y-auto">
-            <SheetHeader>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[85vh]">
+            <DialogHeader>
               <div className="flex justify-between items-start">
                 <div>
-                  <SheetTitle>My Bookmarks & Settings</SheetTitle>
-                  <SheetDescription>
+                  <DialogTitle>My Bookmarks & Settings</DialogTitle>
+                  <DialogDescription>
                     Manage your bookmarks and startup profiles
-                  </SheetDescription>
+                  </DialogDescription>
                 </div>
                 <Button variant="ghost" size="sm" onClick={handleSignOut}>
                   <LogOut className="h-4 w-4 mr-2" />
                   Sign Out
                 </Button>
               </div>
-            </SheetHeader>
+            </DialogHeader>
             
-            <ProfileSettings defaultTab="bookmarks" onSelectEpisode={setSelectedEpisodeId} />
-          </SheetContent>
-        </Sheet>
+            <ScrollArea className="max-h-[65vh] pr-4">
+              <ProfileSettings defaultTab="bookmarks" onSelectEpisode={setSelectedEpisodeId} />
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
         <ThemeToggle />
       </div>
       <HeroSection />

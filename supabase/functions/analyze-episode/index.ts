@@ -306,15 +306,16 @@ INSTRUCTIONS:
       }
     }
 
-    // Step 8: Default Chravel profile for personalized insights
+    // Step 8: Default ChravelApp profile for personalized insights
     const chravelDefaultProfile = {
-      company_name: "Chravel",
+      company_name: "ChravelApp",
       company_website: "https://www.chravelapp.com",
       stage: "Pre-seed",
-      funding_raised: "Bootstrapped/Pre-seed",
+      funding_raised: "$2M",
+      valuation: "$10M",
       employee_count: 5,
-      industry: "Travel Tech / Group Collaboration",
-      description: "Chravel is the AI-powered hub for group adventures. We solve the chaos of group travel coordination where people juggle 15+ apps and spend 16 hours planning trips. Our platform combines shared calendars, file management, payment splitting, and an AI concierge with full trip context into one unified solution. Like Microsoft's Office 365 streamlines work, Chravel is 'Travel 365' for out-of-office coordination. Target markets include consumer group travel ($400B+), corporate/professional travel ($4.7B), and large-scale events ($750B). Key challenges: achieving product-market fit, driving user adoption, and building network effects in a crowded travel tech space."
+      industry: "Travel Tech",
+      description: "ChravelApp is the AI-powered hub for group adventures. We solve the chaos of group travel coordination where people juggle 15+ apps and spend 16 hours planning trips. Our platform combines shared calendars, file management, payment splitting, and an AI concierge with full trip context into one unified solution. Like Microsoft's Office 365 streamlines work, ChravelApp is 'Travel 365' for out-of-office coordination. Target markets include consumer group travel ($400B+), corporate/professional travel ($4.7B), and large-scale events ($750B). Key challenges: achieving product-market fit, driving user adoption, and building network effects in a crowded travel tech space."
     };
 
     // Use provided profile, or default to Chravel
