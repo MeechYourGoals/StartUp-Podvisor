@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Edit2, FolderPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,8 @@ export const ProfileSettings = ({
   defaultTab?: "profiles" | "bookmarks";
 }) => {
   const { toast } = useToast();
+  const { isAdmin } = useUserRole();
+  const profileLimit = isAdmin ? 10 : 3;
   const [profiles, setProfiles] = useState<StartupProfile[]>([]);
   const [editingProfile, setEditingProfile] = useState<StartupProfile | null>(null);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
@@ -108,10 +111,10 @@ export const ProfileSettings = ({
       return;
     }
 
-    if (!editingProfile && profiles.length >= 3) {
+    if (!editingProfile && profiles.length >= profileLimit) {
       toast({
         title: "Profile Limit Reached",
-        description: "You can save up to 3 startup profiles. Delete one to add another.",
+        description: `You can save up to ${profileLimit} startup profiles. Delete one to add another.`,
         variant: "destructive",
       });
       return;
@@ -376,14 +379,14 @@ export const ProfileSettings = ({
       <TabsContent value="profiles" className="space-y-4">
         <div className="flex justify-between items-center">
           <p className="text-sm text-muted-foreground">
-            {profiles.length}/3 profiles saved
+            {profiles.length}/{profileLimit} profiles saved
           </p>
           <Button
             onClick={() => {
               setEditingProfile(null);
               setShowProfileDialog(true);
             }}
-            disabled={profiles.length >= 3}
+            disabled={profiles.length >= profileLimit}
             size="sm"
           >
             <Plus className="h-4 w-4 mr-2" />
