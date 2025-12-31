@@ -3,13 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Building2 } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ProfileSettings } from "./ProfileSettings";
 
 interface StartupProfile {
@@ -24,7 +21,7 @@ export const CompactProfileIndicator = ({
   onSelectEpisode?: (id: string) => void;
 }) => {
   const [activeProfile, setActiveProfile] = useState<StartupProfile | null>(null);
-  const [profileCount, setProfileCount] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     fetchActiveProfile();
@@ -40,7 +37,6 @@ export const CompactProfileIndicator = ({
       if (error) throw error;
       if (data && data.length > 0) {
         setActiveProfile(data[0]);
-        setProfileCount(data.length);
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -48,8 +44,8 @@ export const CompactProfileIndicator = ({
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Building2 className="h-4 w-4" />
           {activeProfile ? (
@@ -60,21 +56,22 @@ export const CompactProfileIndicator = ({
             <span className="hidden sm:inline">Add Profile</span>
           )}
         </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>Startup Profiles & Bookmarks</DialogTitle>
-          <DialogDescription>
-            Manage your startup profiles and saved episodes
-          </DialogDescription>
-        </DialogHeader>
-        <div className="overflow-y-auto max-h-[calc(85vh-120px)] pr-2">
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[400px] max-h-[500px] overflow-y-auto"
+        align="end"
+        sideOffset={8}
+      >
+        {isOpen && (
           <ProfileSettings
             defaultTab="profiles"
-            onSelectEpisode={onSelectEpisode}
+            onSelectEpisode={(id) => {
+              onSelectEpisode?.(id);
+              setIsOpen(false);
+            }}
           />
-        </div>
-      </DialogContent>
-    </Dialog>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 };
