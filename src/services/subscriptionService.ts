@@ -1,0 +1,307 @@
+import { Capacitor } from '@capacitor/core';
+import { supabase } from '@/integrations/supabase/client';
+import type { SubscriptionTier, SubscriptionInfo, TierLimits } from '@/types/subscription';
+import { TIER_LIMITS, REVENUECAT_ENTITLEMENTS } from '@/types/subscription';
+
+// RevenueCat SDK - conditionally loaded for native platforms
+let Purchases: typeof import('@revenuecat/purchases-capacitor').Purchases | null = null;
+
+// Initialize RevenueCat on native platforms
+export async function initializeRevenueCat(userId: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) {
+    console.log('RevenueCat: Skipping initialization on web platform');
+    return;
+  }
+
+  try {
+    const { Purchases: RevenueCatPurchases } = await import('@revenuecat/purchases-capacitor');
+    Purchases = RevenueCatPurchases;
+
+    const apiKey = import.meta.env.VITE_REVENUECAT_IOS_API_KEY;
+    if (!apiKey) {
+      console.warn('RevenueCat: API key not configured');
+      return;
+    }
+
+    await Purchases.configure({
+      apiKey,
+      appUserID: userId,
+    });
+
+    console.log('RevenueCat: Initialized for user', userId);
+  } catch (error) {
+    console.error('RevenueCat: Failed to initialize', error);
+  }
+}
+
+// Identify user with RevenueCat
+export async function identifyUser(userId: string): Promise<void> {
+  if (!Purchases || !Capacitor.isNativePlatform()) return;
+
+  try {
+    await Purchases.logIn({ appUserID: userId });
+    console.log('RevenueCat: User identified', userId);
+  } catch (error) {
+    console.error('RevenueCat: Failed to identify user', error);
+  }
+}
+
+// Get current entitlements from RevenueCat
+export async function getRevenueCatEntitlements(): Promise<SubscriptionTier> {
+  if (!Purchases || !Capacitor.isNativePlatform()) {
+    return 'free';
+  }
+
+  try {
+    const { customerInfo } = await Purchases.getCustomerInfo();
+    const entitlements = customerInfo.entitlements.active;
+
+    if (entitlements[REVENUECAT_ENTITLEMENTS.SERIES_Z]) {
+      return 'series_z';
+    }
+    if (entitlements[REVENUECAT_ENTITLEMENTS.SEED]) {
+      return 'seed';
+    }
+    return 'free';
+  } catch (error) {
+    console.error('RevenueCat: Failed to get entitlements', error);
+    return 'free';
+  }
+}
+
+// Get available packages from RevenueCat
+export async function getRevenueCatOfferings() {
+  if (!Purchases || !Capacitor.isNativePlatform()) {
+    return null;
+  }
+
+  try {
+    const { offerings } = await Purchases.getOfferings();
+    return offerings.current;
+  } catch (error) {
+    console.error('RevenueCat: Failed to get offerings', error);
+    return null;
+  }
+}
+
+// Purchase a package via RevenueCat
+export async function purchasePackage(packageId: string): Promise<boolean> {
+  if (!Purchases || !Capacitor.isNativePlatform()) {
+    return false;
+  }
+
+  try {
+    const { offerings } = await Purchases.getOfferings();
+    const pkg = offerings.current?.availablePackages.find(p => p.identifier === packageId);
+
+    if (!pkg) {
+      console.error('RevenueCat: Package not found', packageId);
+      return false;
+    }
+
+    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+
+    // Sync to Supabase
+    const tier = getRevenueCatEntitlements();
+    await syncSubscriptionToSupabase(await tier);
+
+    return true;
+  } catch (error: any) {
+    if (error.userCancelled) {
+      console.log('RevenueCat: User cancelled purchase');
+    } else {
+      console.error('RevenueCat: Purchase failed', error);
+    }
+    return false;
+  }
+}
+
+// Restore purchases via RevenueCat
+export async function restorePurchases(): Promise<SubscriptionTier> {
+  if (!Purchases || !Capacitor.isNativePlatform()) {
+    return 'free';
+  }
+
+  try {
+    const { customerInfo } = await Purchases.restorePurchases();
+    const tier = await getRevenueCatEntitlements();
+    await syncSubscriptionToSupabase(tier);
+    return tier;
+  } catch (error) {
+    console.error('RevenueCat: Failed to restore purchases', error);
+    return 'free';
+  }
+}
+
+// Sync subscription status to Supabase
+export async function syncSubscriptionToSupabase(tier: SubscriptionTier): Promise<void> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('user_subscriptions')
+      .upsert({
+        user_id: user.id,
+        tier,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id',
+      });
+
+    if (error) {
+      console.error('Failed to sync subscription to Supabase', error);
+    }
+  } catch (error) {
+    console.error('Error syncing subscription', error);
+  }
+}
+
+// Get subscription info from Supabase
+export async function getSubscriptionInfo(): Promise<SubscriptionInfo | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Get subscription from database using RPC
+    const { data: limits, error } = await supabase.rpc('check_tier_limits', {
+      p_user_id: user.id,
+    });
+
+    if (error) {
+      console.error('Failed to get tier limits', error);
+      // Return default free tier
+      return {
+        tier: 'free',
+        limits: {
+          profiles: { max: 1, used: 0 },
+          bookmarks: { max: 5, used: 0 },
+          analyses: { max: 4, used: 0 },
+        },
+        isActive: true,
+      };
+    }
+
+    // Get subscription details
+    const { data: subscription } = await supabase
+      .from('user_subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    return {
+      tier: (limits?.tier || 'free') as SubscriptionTier,
+      limits: {
+        profiles: limits?.profiles || { max: 1, used: 0 },
+        bookmarks: limits?.bookmarks || { max: 5, used: 0 },
+        analyses: limits?.analyses || { max: 4, used: 0 },
+      },
+      isActive: true,
+      currentPeriodEnd: subscription?.current_period_end,
+      cancelAtPeriodEnd: subscription?.cancel_at_period_end,
+    };
+  } catch (error) {
+    console.error('Error getting subscription info', error);
+    return null;
+  }
+}
+
+// Check if user can perform an action based on limits
+export function canPerformAction(
+  limits: TierLimits,
+  action: 'profile' | 'bookmark' | 'analysis'
+): { allowed: boolean; message?: string } {
+  switch (action) {
+    case 'profile':
+      if (limits.profiles.used >= limits.profiles.max) {
+        return {
+          allowed: false,
+          message: `You've reached your limit of ${limits.profiles.max} profile${limits.profiles.max > 1 ? 's' : ''}. Upgrade to add more.`,
+        };
+      }
+      break;
+    case 'bookmark':
+      if (limits.bookmarks.used >= limits.bookmarks.max) {
+        return {
+          allowed: false,
+          message: `You've reached your limit of ${limits.bookmarks.max} bookmarks. Upgrade for more.`,
+        };
+      }
+      break;
+    case 'analysis':
+      if (limits.analyses.used >= limits.analyses.max) {
+        return {
+          allowed: false,
+          message: `You've used your ${limits.analyses.max} free analyses this month. Upgrade to analyze more videos.`,
+        };
+      }
+      break;
+  }
+  return { allowed: true };
+}
+
+// Increment analysis count
+export async function incrementAnalysisCount(): Promise<number> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
+
+    const { data, error } = await supabase.rpc('increment_analysis_count', {
+      p_user_id: user.id,
+    });
+
+    if (error) {
+      console.error('Failed to increment analysis count', error);
+      return 0;
+    }
+
+    return data || 0;
+  } catch (error) {
+    console.error('Error incrementing analysis count', error);
+    return 0;
+  }
+}
+
+// Get Stripe checkout URL (for web payments)
+export async function getStripeCheckoutUrl(priceId: string): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+      body: { priceId, userId: user.id },
+    });
+
+    if (error) {
+      console.error('Failed to create checkout session', error);
+      return null;
+    }
+
+    return data?.url || null;
+  } catch (error) {
+    console.error('Error creating checkout session', error);
+    return null;
+  }
+}
+
+// Get Stripe customer portal URL
+export async function getStripePortalUrl(): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase.functions.invoke('create-portal-session', {
+      body: { userId: user.id },
+    });
+
+    if (error) {
+      console.error('Failed to create portal session', error);
+      return null;
+    }
+
+    return data?.url || null;
+  } catch (error) {
+    console.error('Error creating portal session', error);
+    return null;
+  }
+}
