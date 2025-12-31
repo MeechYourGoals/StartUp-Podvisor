@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/useUserRole";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Edit2, FolderPlus } from "lucide-react";
+import { Plus, Trash2, Edit2, FolderPlus, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { BookmarkFolderDialog } from "@/components/BookmarkFolderDialog";
 import { BookmarkedEpisodeCard } from "@/components/BookmarkedEpisodeCard";
 import { StartupProfileDialog } from "@/components/StartupProfileDialog";
+import { UpgradePrompt, UsageDisplay } from "@/components/subscription";
 
 interface StartupProfile {
   id: string;
@@ -48,18 +49,17 @@ interface BookmarkedEpisode {
 
 type StageType = "pre_seed" | "seed" | "series_a" | "series_b_plus" | "growth" | "public" | "bootstrapped";
 
-export const ProfileSettings = ({ 
-  onSelectEpisode, 
-  defaultTab = "profiles",
-  condensed = false
-}: { 
+export const ProfileSettings = ({
+  onSelectEpisode,
+  defaultTab = "profiles"
+}: {
   onSelectEpisode?: (id: string) => void;
-  defaultTab?: "profiles" | "bookmarks";
-  condensed?: boolean;
+  defaultTab?: "profiles" | "bookmarks" | "subscription";
 }) => {
   const { toast } = useToast();
-  const { isAdmin } = useUserRole();
-  const profileLimit = isAdmin ? 10 : 3;
+  const { subscription, canCreateProfile, canCreateBookmark, refreshSubscription } = useSubscription();
+  const profileLimit = subscription?.limits.profiles.max || 1;
+  const bookmarkLimit = subscription?.limits.bookmarks.max || 5;
   const [profiles, setProfiles] = useState<StartupProfile[]>([]);
   const [editingProfile, setEditingProfile] = useState<StartupProfile | null>(null);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
@@ -113,13 +113,16 @@ export const ProfileSettings = ({
       return;
     }
 
-    if (!editingProfile && profiles.length >= profileLimit) {
-      toast({
-        title: "Profile Limit Reached",
-        description: `You can save up to ${profileLimit} startup profiles. Delete one to add another.`,
-        variant: "destructive",
-      });
-      return;
+    if (!editingProfile) {
+      const profileCheck = canCreateProfile();
+      if (!profileCheck.allowed) {
+        toast({
+          title: "Profile Limit Reached",
+          description: profileCheck.message || `Upgrade to add more profiles.`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {
@@ -371,24 +374,38 @@ export const ProfileSettings = ({
     }
   };
 
+  const profileCheck = canCreateProfile();
+  const bookmarkCheck = canCreateBookmark();
+
   return (
     <Tabs defaultValue={defaultTab} className="mt-6">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="profiles">Startup Profiles</TabsTrigger>
+      <TabsList className="grid w-full grid-cols-3">
+        <TabsTrigger value="profiles">Profiles</TabsTrigger>
         <TabsTrigger value="bookmarks">Bookmarks</TabsTrigger>
+        <TabsTrigger value="subscription">
+          <Zap className="h-4 w-4 mr-1" />
+          Plan
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="profiles" className="space-y-4">
+        {!profileCheck.allowed && (
+          <UpgradePrompt
+            message={profileCheck.message || "Upgrade to add more profiles"}
+            feature="profile"
+            compact
+          />
+        )}
         <div className="flex justify-between items-center">
           <p className="text-sm text-muted-foreground">
-            {profiles.length}/{profileLimit} profiles saved
+            {subscription?.limits.profiles.used || profiles.length}/{profileLimit} profiles
           </p>
           <Button
             onClick={() => {
               setEditingProfile(null);
               setShowProfileDialog(true);
             }}
-            disabled={profiles.length >= profileLimit}
+            disabled={!profileCheck.allowed}
             size="sm"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -556,6 +573,10 @@ export const ProfileSettings = ({
           folder={editingFolder}
           onSave={handleSaveFolder}
         />
+      </TabsContent>
+
+      <TabsContent value="subscription" className="space-y-4">
+        <UsageDisplay showUpgrade />
       </TabsContent>
     </Tabs>
   );

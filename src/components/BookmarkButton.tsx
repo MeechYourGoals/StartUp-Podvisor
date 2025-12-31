@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Heart, FolderPlus } from "lucide-react";
+import { Heart, FolderPlus, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import { cn } from "@/lib/utils";
 import {
   Popover,
@@ -40,6 +41,7 @@ export const BookmarkButton = ({
   const [newFolderName, setNewFolderName] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
   const { toast } = useToast();
+  const { canCreateBookmark, refreshSubscription } = useSubscription();
 
   useEffect(() => {
     fetchFolders();
@@ -114,25 +116,38 @@ export const BookmarkButton = ({
           .delete()
           .eq('episode_id', episodeId)
           .eq('user_id', user.id);
-        
+
         setIsBookmarked(false);
         setSelectedFolderIds(new Set());
         toast({ title: "Bookmark removed" });
+        await refreshSubscription();
       } else {
+        // Check bookmark limit
+        const bookmarkCheck = canCreateBookmark();
+        if (!bookmarkCheck.allowed) {
+          toast({
+            title: "Bookmark Limit Reached",
+            description: bookmarkCheck.message || "Upgrade to save more bookmarks.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         // Add to Default folder
         const defaultFolder = await getOrCreateDefaultFolder(user.id);
-        
+
         await supabase
           .from('bookmarked_episodes')
-          .insert({ 
-            episode_id: episodeId, 
+          .insert({
+            episode_id: episodeId,
             user_id: user.id,
-            folder_id: defaultFolder!.id 
+            folder_id: defaultFolder!.id
           });
-        
+
         setIsBookmarked(true);
         setSelectedFolderIds(new Set([defaultFolder!.id]));
         toast({ title: "Saved to Default folder" });
+        await refreshSubscription();
       }
     } catch (error: any) {
       toast({ 
