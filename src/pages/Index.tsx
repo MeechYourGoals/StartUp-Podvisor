@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { HeroSection } from "@/components/HeroSection";
 import { AnalysisForm } from "@/components/AnalysisForm";
 import { EpisodesTable } from "@/components/EpisodesTable";
 import { EpisodeDetail } from "@/components/EpisodeDetail";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProfileSettings } from "@/components/ProfileSettings";
+import { PublicLanding } from "@/components/PublicLanding";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2, Bookmark, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,18 +22,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const Index = () => {
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
   const { user, loading, signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/auth");
-  };
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
-  }, [user, loading, navigate]);
 
   if (loading) {
     return (
@@ -43,14 +31,15 @@ const Index = () => {
     );
   }
 
+  // Show public landing page for non-authenticated users
   if (!user) {
-    return null;
+    return <PublicLanding />;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <div className="fixed top-4 right-4 z-50 flex gap-2">
-        <Button variant="outline" size="sm" onClick={handleSignOut}>
+        <Button variant="outline" size="sm" onClick={signOut}>
           <LogOut className="h-4 w-4 mr-2" />
           Sign Out
         </Button>
