@@ -477,7 +477,7 @@ export const ProfileSettings = ({
             <p>No folders yet. Create one to organize your bookmarks!</p>
           </div>
         ) : (
-          <ScrollArea className="h-64">
+          <ScrollArea className={condensed ? "h-48" : "h-64"}>
             <div className="space-y-2">
               {folders.map((folder) => (
                 <Card
@@ -549,7 +549,7 @@ export const ProfileSettings = ({
                 <p>No episodes in this folder yet</p>
               </div>
             ) : (
-              <ScrollArea className="h-96">
+              <ScrollArea className={condensed ? "h-64" : "h-96"}>
                 <div className="space-y-3">
                   {bookmarkedEpisodes.map((bookmark) => (
                     <BookmarkedEpisodeCard

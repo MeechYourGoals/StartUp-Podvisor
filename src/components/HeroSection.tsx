@@ -17,9 +17,6 @@ export const HeroSection = () => {
         className="absolute inset-0 opacity-60"
         style={{ background: 'var(--gradient-hero)' }}
       />
-      <div className="absolute top-4 right-4 z-20">
-        <ProfileSettings />
-      </div>
       <div className="container relative mx-auto px-4 py-24">
         <div className="max-w-4xl mx-auto text-center space-y-6">
           <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-in fade-in slide-in-from-bottom-4 duration-1000">
