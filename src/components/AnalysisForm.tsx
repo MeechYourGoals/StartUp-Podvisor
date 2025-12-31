@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Loader2, Sparkles, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StartupProfileForm } from "./StartupProfileForm";
 
@@ -40,10 +41,12 @@ export const AnalysisForm = () => {
   const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
   const [startupContext, setStartupContext] = useState<any>(null);
   const { toast } = useToast();
+  const { isAdmin } = useUserRole();
+  const profileLimit = isAdmin ? 10 : 3;
 
   useEffect(() => {
     fetchSavedProfiles();
-  }, []);
+  }, [isAdmin]);
 
   const fetchSavedProfiles = async () => {
     try {
@@ -51,7 +54,7 @@ export const AnalysisForm = () => {
         .from("user_startup_profiles")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(3);
+        .limit(profileLimit);
 
       if (error) throw error;
       setSavedProfiles(data || []);
