@@ -25,6 +25,7 @@ interface StartupProfile {
   employee_count: number | null;
   industry: string | null;
   description: string;
+  role: string | null;
 }
 
 interface StartupProfileDialogProps {
@@ -40,6 +41,7 @@ interface StartupProfileDialogProps {
     employee_count: number;
     industry: string;
     description: string;
+    role: string;
   }) => Promise<void>;
 }
 
@@ -59,6 +61,7 @@ export const StartupProfileDialog = ({
     employee_count: 0,
     industry: "",
     description: "",
+    role: "",
   });
 
   useEffect(() => {
@@ -72,6 +75,7 @@ export const StartupProfileDialog = ({
         employee_count: profile.employee_count || 0,
         industry: profile.industry || "",
         description: profile.description,
+        role: profile.role || "",
       });
     } else {
       setFormData({
@@ -83,6 +87,7 @@ export const StartupProfileDialog = ({
         employee_count: 0,
         industry: "",
         description: "",
+        role: "",
       });
     }
   }, [profile, open]);
@@ -194,6 +199,16 @@ export const StartupProfileDialog = ({
                   placeholder="Travel Tech"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Your Role</Label>
+              <Textarea
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                placeholder="e.g., CEO, Head of Growth, or describe your responsibilities..."
+                className="min-h-[80px]"
+              />
             </div>
 
             <div className="space-y-2">

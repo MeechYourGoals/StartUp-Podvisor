@@ -20,6 +20,7 @@ interface StartupProfile {
   employee_count: number | null;
   industry: string | null;
   description: string;
+  role: string | null;
 }
 
 interface Folder {
@@ -96,6 +97,7 @@ export const ProfileSettings = ({
     employee_count: number;
     industry: string;
     description: string;
+    role: string;
   }) => {
     if (!formData.company_name || !formData.stage || !formData.description) {
       toast({
@@ -130,6 +132,7 @@ export const ProfileSettings = ({
             employee_count: formData.employee_count || null,
             industry: formData.industry || null,
             description: formData.description,
+            role: formData.role || null,
           })
           .eq("id", editingProfile.id);
 
@@ -147,6 +150,7 @@ export const ProfileSettings = ({
             employee_count: formData.employee_count || null,
             industry: formData.industry || null,
             description: formData.description,
+            role: formData.role || null,
             user_id: user?.id
           }]);
 
