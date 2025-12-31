@@ -4,20 +4,11 @@ import { AnalysisForm } from "@/components/AnalysisForm";
 import { EpisodesTable } from "@/components/EpisodesTable";
 import { EpisodeDetail } from "@/components/EpisodeDetail";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { ProfileSettings } from "@/components/ProfileSettings";
+import { CompactProfileIndicator } from "@/components/CompactProfileIndicator";
 import { PublicLanding } from "@/components/PublicLanding";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Bookmark, LogOut } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 const Index = () => {
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
@@ -43,24 +34,7 @@ const Index = () => {
           <LogOut className="h-4 w-4 mr-2" />
           Sign Out
         </Button>
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="outline" size="icon">
-              <Bookmark className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-[400px] sm:w-[540px]">
-            <SheetHeader>
-              <SheetTitle>My Bookmarks & Settings</SheetTitle>
-              <SheetDescription>
-                Manage your bookmarks and startup profiles
-              </SheetDescription>
-            </SheetHeader>
-            <ScrollArea className="h-[calc(100vh-120px)] pr-4 mt-4">
-              <ProfileSettings defaultTab="bookmarks" onSelectEpisode={setSelectedEpisodeId} />
-            </ScrollArea>
-          </SheetContent>
-        </Sheet>
+        <CompactProfileIndicator onSelectEpisode={setSelectedEpisodeId} />
         <ThemeToggle />
       </div>
       <HeroSection />
