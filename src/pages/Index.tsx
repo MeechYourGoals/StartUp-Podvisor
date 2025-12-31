@@ -7,8 +7,11 @@ import { EpisodeDetail } from "@/components/EpisodeDetail";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Bookmark, LogOut } from "lucide-react";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { Loader2, Bookmark, LogOut, User, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { TIER_PRICING } from "@/types/subscription";
 import {
   Dialog,
   DialogContent,
@@ -22,12 +25,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const Index = () => {
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
   const { user, loading, signOut } = useAuth();
+  const { subscription } = useSubscription();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
     await signOut();
     navigate("/auth");
   };
+
+  const tierInfo = subscription?.tier ? TIER_PRICING[subscription.tier] : TIER_PRICING.free;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -49,7 +55,20 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <div className="fixed top-4 right-4 z-50 flex gap-2">
+      <div className="fixed top-4 right-4 z-50 flex gap-2 items-center">
+        {subscription && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/account")}
+            className="hidden sm:flex items-center gap-2"
+          >
+            <Badge variant={subscription.tier === "free" ? "secondary" : "default"} className="text-xs">
+              {tierInfo.displayName}
+            </Badge>
+            <User className="h-4 w-4" />
+          </Button>
+        )}
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="outline" size="icon">
@@ -65,13 +84,19 @@ const Index = () => {
                     Manage your bookmarks and startup profiles
                   </DialogDescription>
                 </div>
-                <Button variant="ghost" size="sm" onClick={handleSignOut}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => navigate("/account")}>
+                    <Zap className="h-4 w-4 mr-2" />
+                    Account
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </Button>
+                </div>
               </div>
             </DialogHeader>
-            
+
             <ScrollArea className="max-h-[65vh] pr-4">
               <ProfileSettings defaultTab="bookmarks" onSelectEpisode={setSelectedEpisodeId} />
             </ScrollArea>

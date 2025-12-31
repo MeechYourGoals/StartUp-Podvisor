@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Loader2, Sparkles, ArrowLeft } from "lucide-react";
+import { Loader2, Sparkles, ArrowLeft, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/useUserRole";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StartupProfileForm } from "./StartupProfileForm";
+import { UpgradePrompt } from "./subscription";
 
 const POPULAR_PODCASTS = [
   "Crucible Moments",
@@ -41,12 +42,12 @@ export const AnalysisForm = () => {
   const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
   const [startupContext, setStartupContext] = useState<any>(null);
   const { toast } = useToast();
-  const { isAdmin } = useUserRole();
-  const profileLimit = isAdmin ? 10 : 3;
+  const { subscription, canAnalyzeVideo, trackAnalysis, refreshSubscription } = useSubscription();
+  const profileLimit = subscription?.limits.profiles.max || 1;
 
   useEffect(() => {
     fetchSavedProfiles();
-  }, [isAdmin]);
+  }, [subscription]);
 
   const fetchSavedProfiles = async () => {
     try {
@@ -65,11 +66,22 @@ export const AnalysisForm = () => {
 
   const handleEpisodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!episodeUrl.trim()) {
       toast({
         title: "Missing Information",
         description: "Please enter an episode URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check analysis limit before proceeding
+    const analysisCheck = canAnalyzeVideo();
+    if (!analysisCheck.allowed) {
+      toast({
+        title: "Analysis Limit Reached",
+        description: analysisCheck.message || "Upgrade to analyze more videos.",
         variant: "destructive",
       });
       return;
@@ -125,6 +137,10 @@ export const AnalysisForm = () => {
 
       setProgress("Generating personalized insights...");
 
+      // Track the analysis for usage limits
+      await trackAnalysis();
+      await refreshSubscription();
+
       toast({
         title: "Analysis complete!",
         description: "Episode analyzed with personalized insights for your startup",
@@ -134,7 +150,7 @@ export const AnalysisForm = () => {
       setPodcastName("");
       setStep("episode");
       setStartupContext(null);
-      
+
       window.dispatchEvent(new CustomEvent('episodeAnalyzed'));
     } catch (error) {
       console.error('Analysis error:', error);
@@ -169,8 +185,28 @@ export const AnalysisForm = () => {
     );
   }
 
+  const analysisCheck = canAnalyzeVideo();
+
   return (
     <Card className="p-8 shadow-lg border-primary/10 hover:shadow-xl transition-shadow">
+      {!analysisCheck.allowed && (
+        <div className="mb-6">
+          <UpgradePrompt
+            message={analysisCheck.message || "You've used all your free analyses this month"}
+            feature="analysis"
+          />
+        </div>
+      )}
+
+      {analysisCheck.allowed && subscription && (
+        <div className="mb-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Zap className="h-4 w-4" />
+          <span>
+            {subscription.limits.analyses.used}/{subscription.limits.analyses.max} analyses used this month
+          </span>
+        </div>
+      )}
+
       <form onSubmit={handleEpisodeSubmit} className="space-y-6">
         <div className="space-y-2 text-center">
           <h2 className="text-2xl font-bold flex items-center justify-center gap-2">
@@ -247,9 +283,9 @@ export const AnalysisForm = () => {
         </Tabs>
 
         <div className="flex justify-center">
-          <Button 
-            type="submit" 
-            disabled={isAnalyzing}
+          <Button
+            type="submit"
+            disabled={isAnalyzing || !analysisCheck.allowed}
             size="lg"
             className="min-w-[200px]"
           >
@@ -257,6 +293,11 @@ export const AnalysisForm = () => {
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 {progress || "Analyzing..."}
+              </>
+            ) : !analysisCheck.allowed ? (
+              <>
+                <Zap className="mr-2 h-4 w-4" />
+                Upgrade to Continue
               </>
             ) : (
               <>
