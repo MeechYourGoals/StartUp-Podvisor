@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { HeroSection } from "@/components/HeroSection";
 import { AnalysisForm } from "@/components/AnalysisForm";
 import { EpisodesTable } from "@/components/EpisodesTable";
 import { EpisodeDetail } from "@/components/EpisodeDetail";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProfileSettings } from "@/components/ProfileSettings";
+import { PublicLanding } from "@/components/PublicLanding";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { Loader2, Bookmark, LogOut, User, Zap } from "lucide-react";
@@ -13,13 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TIER_PRICING } from "@/types/subscription";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const Index = () => {
@@ -49,8 +49,9 @@ const Index = () => {
     );
   }
 
+  // Show public landing page for non-authenticated users
   if (!user) {
-    return null;
+    return <PublicLanding />;
   }
 
   return (
@@ -98,10 +99,29 @@ const Index = () => {
             </DialogHeader>
 
             <ScrollArea className="max-h-[65vh] pr-4">
+      <div className="fixed top-4 right-4 z-50 flex gap-2">
+        <Button variant="outline" size="sm" onClick={signOut}>
+          <LogOut className="h-4 w-4 mr-2" />
+          Sign Out
+        </Button>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon">
+              <Bookmark className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+            <SheetHeader>
+              <SheetTitle>My Bookmarks & Settings</SheetTitle>
+              <SheetDescription>
+                Manage your bookmarks and startup profiles
+              </SheetDescription>
+            </SheetHeader>
+            <ScrollArea className="h-[calc(100vh-120px)] pr-4 mt-4">
               <ProfileSettings defaultTab="bookmarks" onSelectEpisode={setSelectedEpisodeId} />
             </ScrollArea>
-          </DialogContent>
-        </Dialog>
+          </SheetContent>
+        </Sheet>
         <ThemeToggle />
       </div>
       <HeroSection />
