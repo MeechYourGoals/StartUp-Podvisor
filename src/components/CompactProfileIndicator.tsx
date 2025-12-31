@@ -3,10 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Building2 } from "lucide-react";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProfileSettings } from "./ProfileSettings";
 
 interface StartupProfile {
@@ -21,7 +24,7 @@ export const CompactProfileIndicator = ({
   onSelectEpisode?: (id: string) => void;
 }) => {
   const [activeProfile, setActiveProfile] = useState<StartupProfile | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchActiveProfile();
@@ -32,7 +35,8 @@ export const CompactProfileIndicator = ({
       const { data, error } = await supabase
         .from("user_startup_profiles")
         .select("id, company_name, stage")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(1);
 
       if (error) throw error;
       if (data && data.length > 0) {
@@ -43,35 +47,34 @@ export const CompactProfileIndicator = ({
     }
   };
 
+  const handleSelectEpisode = (id: string) => {
+    setDialogOpen(false);
+    onSelectEpisode?.(id);
+  };
+
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Building2 className="h-4 w-4" />
-          {activeProfile ? (
-            <span className="hidden sm:inline max-w-[120px] truncate">
-              {activeProfile.company_name}
-            </span>
-          ) : (
-            <span className="hidden sm:inline">Add Profile</span>
-          )}
+          <span className="hidden sm:inline max-w-[120px] truncate">
+            {activeProfile?.company_name || "Profiles"}
+          </span>
         </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[400px] max-h-[500px] overflow-y-auto"
-        align="end"
-        sideOffset={8}
-      >
-        {isOpen && (
-          <ProfileSettings
-            defaultTab="profiles"
-            onSelectEpisode={(id) => {
-              onSelectEpisode?.(id);
-              setIsOpen(false);
-            }}
-          />
-        )}
-      </PopoverContent>
-    </Popover>
+      </DialogTrigger>
+      {dialogOpen && (
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Startup Profiles & Bookmarks</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <ProfileSettings
+              defaultTab="profiles"
+              onSelectEpisode={handleSelectEpisode}
+            />
+          </ScrollArea>
+        </DialogContent>
+      )}
+    </Dialog>
   );
 };

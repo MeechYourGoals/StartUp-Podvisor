@@ -4,10 +4,9 @@ import { AnalysisForm } from "@/components/AnalysisForm";
 import { EpisodesTable } from "@/components/EpisodesTable";
 import { EpisodeDetail } from "@/components/EpisodeDetail";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { CompactProfileIndicator } from "@/components/CompactProfileIndicator";
 import { PublicLanding } from "@/components/PublicLanding";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, LogOut } from "lucide-react";
+import { Loader2, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
@@ -34,7 +33,9 @@ const Index = () => {
           <LogOut className="h-4 w-4 mr-2" />
           Sign Out
         </Button>
-        <CompactProfileIndicator onSelectEpisode={setSelectedEpisodeId} />
+        <Button variant="outline" size="icon" title="Settings (Coming Soon)">
+          <Settings className="h-4 w-4" />
+        </Button>
         <ThemeToggle />
       </div>
       <HeroSection />
