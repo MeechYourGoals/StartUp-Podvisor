@@ -7,21 +7,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Tier limits configuration
-const TIER_LIMITS = {
-  free: { analyses: 4 },
-  seed: { analyses: 10 },
-  series_z: { analyses: 25 },
-} as const;
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { episodeUrl, podcastName, startupProfile, userId } = await req.json();
-    console.log('Analyzing episode:', { episodeUrl, podcastName, hasProfile: !!startupProfile, userId });
+    const { episodeUrl, podcastName, startupProfile } = await req.json();
+    console.log('Analyzing episode:', { episodeUrl, podcastName, hasProfile: !!startupProfile });
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!lovableApiKey) {
@@ -36,52 +29,6 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get user from auth header if userId not provided
-    let authenticatedUserId = userId;
-    const authHeader = req.headers.get('Authorization');
-    if (authHeader && !authenticatedUserId) {
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user } } = await supabase.auth.getUser(token);
-      authenticatedUserId = user?.id;
-    }
-
-    // Check subscription limits if we have a user
-    if (authenticatedUserId) {
-      const monthYear = new Date().toISOString().slice(0, 7); // YYYY-MM
-
-      // Get user's subscription tier
-      const { data: subscription } = await supabase
-        .from('user_subscriptions')
-        .select('tier')
-        .eq('user_id', authenticatedUserId)
-        .single();
-
-      const tier = (subscription?.tier || 'free') as keyof typeof TIER_LIMITS;
-      const maxAnalyses = TIER_LIMITS[tier]?.analyses || 4;
-
-      // Get current month usage
-      const { data: usage } = await supabase
-        .from('user_monthly_usage')
-        .select('analyses_count')
-        .eq('user_id', authenticatedUserId)
-        .eq('month_year', monthYear)
-        .single();
-
-      const currentCount = usage?.analyses_count || 0;
-
-      if (currentCount >= maxAnalyses) {
-        return new Response(JSON.stringify({
-          error: `You've reached your limit of ${maxAnalyses} analyses this month. Upgrade your plan for more.`,
-          limitReached: true,
-          currentCount,
-          maxAnalyses,
-        }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
 
     // Extract video ID for YouTube URLs
     let videoId = '';
@@ -307,7 +254,6 @@ INSTRUCTIONS:
         company_id: companyId,
         founder_names: analysis.founderNames,
         analysis_status: 'completed',
-        analyzed_by: authenticatedUserId || null,
       })
       .select('id')
       .single();
@@ -315,13 +261,6 @@ INSTRUCTIONS:
     if (episodeError) {
       console.error('Error creating episode:', episodeError);
       throw new Error(`Failed to create episode: ${episodeError.message} (${episodeError.code})`);
-    }
-
-    // Increment user's monthly analysis count
-    if (authenticatedUserId) {
-      const monthYear = new Date().toISOString().slice(0, 7);
-      await supabase.rpc('increment_analysis_count', { p_user_id: authenticatedUserId });
-      console.log('Incremented analysis count for user:', authenticatedUserId);
     }
 
     // Step 6: Insert lessons with normalization

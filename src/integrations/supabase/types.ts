@@ -14,75 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      user_subscriptions: {
-        Row: {
-          id: string
-          user_id: string
-          tier: Database["public"]["Enums"]["subscription_tier"]
-          stripe_customer_id: string | null
-          stripe_subscription_id: string | null
-          revenuecat_app_user_id: string | null
-          current_period_start: string | null
-          current_period_end: string | null
-          cancel_at_period_end: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          tier?: Database["public"]["Enums"]["subscription_tier"]
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          revenuecat_app_user_id?: string | null
-          current_period_start?: string | null
-          current_period_end?: string | null
-          cancel_at_period_end?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          tier?: Database["public"]["Enums"]["subscription_tier"]
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          revenuecat_app_user_id?: string | null
-          current_period_start?: string | null
-          current_period_end?: string | null
-          cancel_at_period_end?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      user_monthly_usage: {
-        Row: {
-          id: string
-          user_id: string
-          month_year: string
-          analyses_count: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          month_year: string
-          analyses_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          month_year?: string
-          analyses_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       bookmark_folders: {
         Row: {
           color: string | null
@@ -522,7 +453,6 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
-      subscription_tier: "free" | "seed" | "series_z"
       startup_stage:
         | "pre_seed"
         | "seed"
@@ -659,7 +589,6 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
-      subscription_tier: ["free", "seed", "series_z"],
       startup_stage: [
         "pre_seed",
         "seed",
