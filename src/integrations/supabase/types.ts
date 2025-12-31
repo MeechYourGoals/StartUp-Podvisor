@@ -400,6 +400,7 @@ export type Database = {
           funding_raised: string | null
           id: string
           industry: string | null
+          role: string | null
           stage: Database["public"]["Enums"]["startup_stage"]
           updated_at: string | null
           user_id: string | null
@@ -414,6 +415,7 @@ export type Database = {
           funding_raised?: string | null
           id?: string
           industry?: string | null
+          role?: string | null
           stage: Database["public"]["Enums"]["startup_stage"]
           updated_at?: string | null
           user_id?: string | null
@@ -428,6 +430,7 @@ export type Database = {
           funding_raised?: string | null
           id?: string
           industry?: string | null
+          role?: string | null
           stage?: Database["public"]["Enums"]["startup_stage"]
           updated_at?: string | null
           user_id?: string | null
