@@ -50,10 +50,12 @@ type StageType = "pre_seed" | "seed" | "series_a" | "series_b_plus" | "growth" |
 
 export const ProfileSettings = ({ 
   onSelectEpisode, 
-  defaultTab = "profiles" 
+  defaultTab = "profiles",
+  condensed = false
 }: { 
   onSelectEpisode?: (id: string) => void;
   defaultTab?: "profiles" | "bookmarks";
+  condensed?: boolean;
 }) => {
   const { toast } = useToast();
   const { isAdmin } = useUserRole();
@@ -458,7 +460,7 @@ export const ProfileSettings = ({
             <p>No folders yet. Create one to organize your bookmarks!</p>
           </div>
         ) : (
-          <ScrollArea className="h-64">
+          <ScrollArea className={condensed ? "h-48" : "h-64"}>
             <div className="space-y-2">
               {folders.map((folder) => (
                 <Card
@@ -530,7 +532,7 @@ export const ProfileSettings = ({
                 <p>No episodes in this folder yet</p>
               </div>
             ) : (
-              <ScrollArea className="h-96">
+              <ScrollArea className={condensed ? "h-64" : "h-96"}>
                 <div className="space-y-3">
                   {bookmarkedEpisodes.map((bookmark) => (
                     <BookmarkedEpisodeCard

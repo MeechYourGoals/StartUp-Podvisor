@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { PublicLanding } from "@/components/PublicLanding";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Bookmark, LogOut } from "lucide-react";
+import { Loader2, LogOut, Briefcase, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -15,13 +15,26 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { Card } from "@/components/ui/card";
 
 const Index = () => {
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
   const { user, loading, signOut } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"profiles" | "bookmarks">("profiles");
+  const isDesktop = useMediaQuery("(min-width: 1280px)");
+
+  const handleToggle = (tab: "profiles" | "bookmarks") => {
+    if (profileOpen && activeTab === tab) {
+      setProfileOpen(false);
+    } else {
+      setActiveTab(tab);
+      setProfileOpen(true);
+    }
+  };
 
   if (loading) {
     return (
@@ -37,18 +50,57 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 relative">
       <div className="fixed top-4 right-4 z-50 flex gap-2">
         <Button variant="outline" size="sm" onClick={signOut}>
           <LogOut className="h-4 w-4 mr-2" />
           Sign Out
         </Button>
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="outline" size="icon">
-              <Bookmark className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
+
+        <Button
+          variant={profileOpen && activeTab === "profiles" ? "default" : "outline"}
+          size="sm"
+          onClick={() => handleToggle("profiles")}
+        >
+          <Briefcase className="h-4 w-4 mr-2" />
+          Startup Profiles
+        </Button>
+
+        <Button
+          variant={profileOpen && activeTab === "bookmarks" ? "default" : "outline"}
+          size="sm"
+          onClick={() => handleToggle("bookmarks")}
+        >
+          <Bookmark className="h-4 w-4 mr-2" />
+          Bookmarks
+        </Button>
+
+        <ThemeToggle />
+      </div>
+
+      {/* Desktop Profile Box - Positioned relative to align with content */}
+      {isDesktop && profileOpen && (
+        <div className="fixed inset-x-0 top-[80px] z-40 pointer-events-none">
+          <div className="container mx-auto max-w-6xl px-4 relative">
+            <div className="absolute right-4 top-0 pointer-events-auto">
+              <Card className="w-[350px] max-h-[calc(100vh-100px)] overflow-hidden shadow-2xl p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <ScrollArea className="h-full max-h-[calc(100vh-140px)]">
+                  <ProfileSettings
+                    key={activeTab}
+                    defaultTab={activeTab}
+                    onSelectEpisode={setSelectedEpisodeId}
+                    condensed={true}
+                  />
+                </ScrollArea>
+              </Card>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Sheet - Fallback */}
+      {!isDesktop && (
+        <Sheet open={profileOpen} onOpenChange={setProfileOpen}>
           <SheetContent side="right" className="w-[400px] sm:w-[540px]">
             <SheetHeader>
               <SheetTitle>My Bookmarks & Settings</SheetTitle>
@@ -57,12 +109,20 @@ const Index = () => {
               </SheetDescription>
             </SheetHeader>
             <ScrollArea className="h-[calc(100vh-120px)] pr-4 mt-4">
-              <ProfileSettings defaultTab="bookmarks" onSelectEpisode={setSelectedEpisodeId} />
+              {profileOpen && (
+                <ProfileSettings
+                  defaultTab={activeTab}
+                  onSelectEpisode={(id) => {
+                    setSelectedEpisodeId(id);
+                    setProfileOpen(false);
+                  }}
+                />
+              )}
             </ScrollArea>
           </SheetContent>
         </Sheet>
-        <ThemeToggle />
-      </div>
+      )}
+
       <HeroSection />
       <div className="container mx-auto px-4 py-12 space-y-12 max-w-6xl">
         <AnalysisForm />
