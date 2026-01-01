@@ -51,10 +51,12 @@ type StageType = "pre_seed" | "seed" | "series_a" | "series_b_plus" | "growth" |
 
 export const ProfileSettings = ({
   onSelectEpisode,
-  defaultTab = "profiles"
+  defaultTab = "profiles",
+  condensed
 }: {
   onSelectEpisode?: (id: string) => void;
   defaultTab?: "profiles" | "bookmarks" | "subscription";
+  condensed?: boolean;
 }) => {
   const { toast } = useToast();
   const { subscription, canCreateProfile, canCreateBookmark, refreshSubscription } = useSubscription();
