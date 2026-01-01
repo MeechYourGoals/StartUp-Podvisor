@@ -119,6 +119,6 @@ export const REVENUECAT_ENTITLEMENTS = {
 } as const;
 
 export const STRIPE_PRICE_IDS = {
-  SEED_MONTHLY: process.env.VITE_STRIPE_SEED_PRICE_ID || 'price_seed_monthly',
-  SERIES_Z_MONTHLY: process.env.VITE_STRIPE_SERIES_Z_PRICE_ID || 'price_series_z_monthly',
+  SEED_MONTHLY: import.meta.env.VITE_STRIPE_SEED_PRICE_ID || 'price_seed_monthly',
+  SERIES_Z_MONTHLY: import.meta.env.VITE_STRIPE_SERIES_Z_PRICE_ID || 'price_series_z_monthly',
 } as const;
