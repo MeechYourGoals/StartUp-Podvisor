@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, FileJson, FileText, FileSpreadsheet } from "lucide-react";
+import { Download, FileJson, FileText, FileSpreadsheet, FileDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface ExportModalProps {
   episodeId?: string;
@@ -174,6 +176,74 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
     }
   };
 
+  const exportPDF = async () => {
+    setExporting(true);
+    try {
+      const data = episodeId ? [await fetchEpisodeData(episodeId)] : await fetchAllData();
+      const doc = new jsPDF();
+      let y = 20;
+
+      doc.setFontSize(18);
+      doc.text("Founder Lessons", 14, y);
+      y += 12;
+
+      data?.forEach((episode: any, eIdx: number) => {
+        if (y > 250) { doc.addPage(); y = 20; }
+
+        doc.setFontSize(13);
+        doc.setFont("helvetica", "bold");
+        doc.text(episode.title || "Untitled", 14, y, { maxWidth: 180 });
+        y += 8;
+
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        const meta = [
+          `Company: ${episode.companies?.name || "N/A"}`,
+          `Founders: ${episode.founder_names || "N/A"}`,
+          `Date: ${episode.release_date || "N/A"}`,
+        ].join("  |  ");
+        doc.text(meta, 14, y, { maxWidth: 180 });
+        y += 6;
+
+        if (episode.lessons?.length > 0) {
+          const tableData = episode.lessons.map((lesson: any) => {
+            const insight = lesson.personalized_insights?.[0];
+            return [
+              lesson.lesson_text || "",
+              lesson.category || "",
+              `${lesson.impact_score || "-"}/10`,
+              `${lesson.actionability_score || "-"}/10`,
+              insight?.personalized_text || "",
+            ];
+          });
+
+          autoTable(doc, {
+            startY: y,
+            head: [["Lesson", "Category", "Impact", "Action.", "Personalized Insight"]],
+            body: tableData,
+            styles: { fontSize: 7, cellPadding: 2 },
+            headStyles: { fillColor: [59, 130, 246] },
+            columnStyles: {
+              0: { cellWidth: 50 },
+              4: { cellWidth: 50 },
+            },
+            margin: { left: 14, right: 14 },
+          });
+
+          y = (doc as any).lastAutoTable.finalY + 10;
+        }
+      });
+
+      doc.save(`founder-lessons-${episodeId ? "episode" : "all"}-${new Date().toISOString().split("T")[0]}.pdf`);
+      toast({ title: "Export complete", description: "PDF file downloaded" });
+      onOpenChange(false);
+    } catch (error) {
+      toast({ title: "Export failed", description: "Please try again", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -181,30 +251,19 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
           <DialogTitle>Export {episodeId ? 'Episode' : 'All Episodes'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 pt-4">
-          <Button
-            onClick={exportCSV}
-            disabled={exporting}
-            variant="outline"
-            className="w-full justify-start"
-          >
+          <Button onClick={exportPDF} disabled={exporting} variant="outline" className="w-full justify-start">
+            <FileDown className="w-4 h-4 mr-2" />
+            Export as PDF
+          </Button>
+          <Button onClick={exportCSV} disabled={exporting} variant="outline" className="w-full justify-start">
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Export as CSV
           </Button>
-          <Button
-            onClick={exportJSON}
-            disabled={exporting}
-            variant="outline"
-            className="w-full justify-start"
-          >
+          <Button onClick={exportJSON} disabled={exporting} variant="outline" className="w-full justify-start">
             <FileJson className="w-4 h-4 mr-2" />
             Export as JSON
           </Button>
-          <Button
-            onClick={exportMarkdown}
-            disabled={exporting}
-            variant="outline"
-            className="w-full justify-start"
-          >
+          <Button onClick={exportMarkdown} disabled={exporting} variant="outline" className="w-full justify-start">
             <FileText className="w-4 h-4 mr-2" />
             Export as Markdown
           </Button>
