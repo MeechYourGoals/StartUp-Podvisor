@@ -1,26 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, TrendingUp, MoreVertical, Eye, Bookmark, Download, Copy, Youtube, Headphones, Trash2, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  ExternalLink, TrendingUp, MoreVertical, Eye, Bookmark, Download, Copy,
+  Youtube, Headphones, Trash2, X, ArrowUpDown, ArrowUp, ArrowDown,
+  FolderPlus, Folder, ChevronLeft, ChevronRight,
+} from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub,
+  DropdownMenuSubTrigger, DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 import { ExportModal } from "@/components/ExportModal";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 
 interface Episode {
@@ -31,6 +32,7 @@ interface Episode {
   founder_names: string | null;
   analysis_status: string;
   company_id: string | null;
+  created_at: string | null;
   companies?: {
     name: string;
     founding_year: number | null;
@@ -40,12 +42,22 @@ interface Episode {
   } | null;
 }
 
+interface EpisodeFolder {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface EpisodesTableProps {
   onSelectEpisode: (id: string) => void;
 }
 
+type SortColumn = "title" | "company" | "founder" | "stage" | "industry" | "created_at";
+type SortDirection = "asc" | "desc";
+
+const PAGE_SIZE = 15;
+
 export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
-  const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [allEpisodes, setAllEpisodes] = useState<Episode[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -53,146 +65,227 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   const [selectedExportId, setSelectedExportId] = useState<string | undefined>();
   const { toast } = useToast();
 
+  // Sorting
+  const [sortColumn, setSortColumn] = useState<SortColumn>("created_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Folders
+  const [folders, setFolders] = useState<EpisodeFolder[]>([]);
+  const [folderAssignments, setFolderAssignments] = useState<Record<string, string[]>>({});
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [manageFoldersOpen, setManageFoldersOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+
   const parseIndustries = (industryString: string | null | undefined): string[] => {
     if (!industryString) return [];
-    return [...new Set(
-      industryString
-        .split(/[,\/]/)
-        .map(i => i.trim())
-        .filter(Boolean)
-    )];
+    return [...new Set(industryString.split(/[,\/]/).map(i => i.trim()).filter(Boolean))];
   };
 
   const toggleIndustryFilter = (industry: string) => {
     setSelectedIndustries(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(industry)) {
-        newSet.delete(industry);
-      } else {
-        newSet.add(industry);
-      }
+      if (newSet.has(industry)) newSet.delete(industry);
+      else newSet.add(industry);
       return newSet;
     });
+    setCurrentPage(1);
   };
 
-  const filteredEpisodes = selectedIndustries.size === 0 
-    ? allEpisodes
-    : allEpisodes.filter(ep => {
-        const episodeIndustries = parseIndustries(ep.companies?.industry);
-        return episodeIndustries.some(ind => selectedIndustries.has(ind));
+  // Filter → Sort → Paginate
+  const filteredEpisodes = useMemo(() => {
+    let result = allEpisodes;
+
+    // Industry filter
+    if (selectedIndustries.size > 0) {
+      result = result.filter(ep => {
+        const industries = parseIndustries(ep.companies?.industry);
+        return industries.some(ind => selectedIndustries.has(ind));
       });
+    }
+
+    // Folder filter
+    if (selectedFolderId) {
+      const episodeIdsInFolder = Object.entries(folderAssignments)
+        .filter(([, folderIds]) => folderIds.includes(selectedFolderId))
+        .map(([epId]) => epId);
+      result = result.filter(ep => episodeIdsInFolder.includes(ep.id));
+    }
+
+    return result;
+  }, [allEpisodes, selectedIndustries, selectedFolderId, folderAssignments]);
+
+  const sortedEpisodes = useMemo(() => {
+    const sorted = [...filteredEpisodes];
+    sorted.sort((a, b) => {
+      let aVal = "";
+      let bVal = "";
+      switch (sortColumn) {
+        case "title": aVal = a.title; bVal = b.title; break;
+        case "company": aVal = a.companies?.name || ""; bVal = b.companies?.name || ""; break;
+        case "founder": aVal = a.founder_names || ""; bVal = b.founder_names || ""; break;
+        case "stage": aVal = a.companies?.current_stage || ""; bVal = b.companies?.current_stage || ""; break;
+        case "industry": aVal = a.companies?.industry || ""; bVal = b.companies?.industry || ""; break;
+        case "created_at": aVal = a.created_at || ""; bVal = b.created_at || ""; break;
+      }
+      const cmp = aVal.localeCompare(bVal);
+      return sortDirection === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [filteredEpisodes, sortColumn, sortDirection]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedEpisodes.length / PAGE_SIZE));
+  const paginatedEpisodes = sortedEpisodes.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  const handleSort = (col: SortColumn) => {
+    if (sortColumn === col) {
+      setSortDirection(prev => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(col);
+      setSortDirection("asc");
+    }
+    setCurrentPage(1);
+  };
+
+  const SortIcon = ({ col }: { col: SortColumn }) => {
+    if (sortColumn !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
+    return sortDirection === "asc"
+      ? <ArrowUp className="w-3 h-3 ml-1" />
+      : <ArrowDown className="w-3 h-3 ml-1" />;
+  };
 
   const fetchEpisodes = async () => {
     try {
       const { data, error } = await supabase
-        .from('episodes')
-        .select(`
-          id,
-          title,
-          release_date,
-          url,
-          founder_names,
-          analysis_status,
-          company_id,
-          companies (
-            name,
-            founding_year,
-            current_stage,
-            valuation,
-            industry
-          )
-        `)
-        .order('created_at', { ascending: false });
-
+        .from("episodes")
+        .select(`id, title, release_date, url, founder_names, analysis_status, company_id, created_at, companies (name, founding_year, current_stage, valuation, industry)`)
+        .order("created_at", { ascending: false });
       if (error) throw error;
       setAllEpisodes(data || []);
-      setEpisodes(data || []);
     } catch (error) {
-      console.error('Error fetching episodes:', error);
+      console.error("Error fetching episodes:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchFolders = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: foldersData } = await supabase
+      .from("episode_folders" as any)
+      .select("id, name, color")
+      .eq("user_id", user.id);
+
+    if (foldersData) setFolders(foldersData as any);
+
+    const { data: assignments } = await supabase
+      .from("episode_folder_assignments" as any)
+      .select("episode_id, folder_id")
+      .eq("user_id", user.id);
+
+    if (assignments) {
+      const map: Record<string, string[]> = {};
+      (assignments as any[]).forEach((a: any) => {
+        if (!map[a.episode_id]) map[a.episode_id] = [];
+        map[a.episode_id].push(a.folder_id);
+      });
+      setFolderAssignments(map);
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("episode_folders" as any)
+      .insert({ user_id: user.id, name: newFolderName.trim() } as any);
+
+    if (!error) {
+      setNewFolderName("");
+      fetchFolders();
+      toast({ title: "Folder created" });
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    const { error } = await supabase
+      .from("episode_folders" as any)
+      .delete()
+      .eq("id", folderId);
+    if (!error) {
+      if (selectedFolderId === folderId) setSelectedFolderId(null);
+      fetchFolders();
+      toast({ title: "Folder deleted" });
+    }
+  };
+
+  const handleAssignFolder = async (episodeId: string, folderId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const existing = folderAssignments[episodeId] || [];
+    if (existing.includes(folderId)) {
+      // Remove assignment
+      await supabase
+        .from("episode_folder_assignments" as any)
+        .delete()
+        .eq("episode_id", episodeId)
+        .eq("folder_id", folderId)
+        .eq("user_id", user.id);
+    } else {
+      // Add assignment
+      await supabase
+        .from("episode_folder_assignments" as any)
+        .insert({ user_id: user.id, episode_id: episodeId, folder_id: folderId } as any);
+    }
+    fetchFolders();
+  };
+
   const handleDelete = async (episodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    if (!confirm('Delete this episode analysis? This will also remove all associated lessons, callouts, and personalized insights.')) {
-      return;
-    }
+    if (!confirm("Delete this episode analysis? This will also remove all associated lessons, callouts, and personalized insights.")) return;
 
-    // Optimistically remove from UI
-    const previousEpisodes = episodes;
-    const previousAllEpisodes = allEpisodes;
-    setEpisodes(prev => prev.filter(ep => ep.id !== episodeId));
+    const previous = allEpisodes;
     setAllEpisodes(prev => prev.filter(ep => ep.id !== episodeId));
 
     try {
-      const { data, error } = await supabase
-        .from('episodes')
-        .delete()
-        .eq('id', episodeId)
-        .select();
-
+      const { data, error } = await supabase.from("episodes").delete().eq("id", episodeId).select();
       if (error) throw error;
-
-      // Verify deletion occurred
-      if (!data || data.length === 0) {
-        throw new Error('Delete not permitted or episode not found');
-      }
-
-      toast({
-        title: "Analysis deleted",
-        description: "Episode and all associated data have been removed.",
-      });
+      if (!data || data.length === 0) throw new Error("Delete not permitted or episode not found");
+      toast({ title: "Analysis deleted", description: "Episode and all associated data have been removed." });
     } catch (error) {
-      console.error('Error deleting episode:', error);
-      // Revert optimistic update on failure
-      setEpisodes(previousEpisodes);
-      setAllEpisodes(previousAllEpisodes);
-      toast({
-        title: "Delete failed",
-        description: "Could not delete the episode. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Error deleting episode:", error);
+      setAllEpisodes(previous);
+      toast({ title: "Delete failed", description: "Could not delete the episode. Please try again.", variant: "destructive" });
     }
   };
 
   useEffect(() => {
     fetchEpisodes();
-
-    // Listen for new episodes
-    const handleEpisodeAnalyzed = () => {
-      fetchEpisodes();
-    };
-
-    window.addEventListener('episodeAnalyzed', handleEpisodeAnalyzed);
-    return () => {
-      window.removeEventListener('episodeAnalyzed', handleEpisodeAnalyzed);
-    };
+    fetchFolders();
+    const handleEpisodeAnalyzed = () => { fetchEpisodes(); };
+    window.addEventListener("episodeAnalyzed", handleEpisodeAnalyzed);
+    return () => window.removeEventListener("episodeAnalyzed", handleEpisodeAnalyzed);
   }, []);
 
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [selectedFolderId]);
+
   if (loading) {
-    return (
-      <Card className="p-8">
-        <div className="text-center text-muted-foreground">Loading episodes...</div>
-      </Card>
-    );
+    return <Card className="p-8"><div className="text-center text-muted-foreground">Loading episodes...</div></Card>;
   }
 
-  const getPlatformIcon = (url: string) => {
-    if (url.includes('youtube.com') || url.includes('youtu.be')) {
-      return <Youtube className="w-4 h-4" />;
-    }
-    return <Headphones className="w-4 h-4" />;
-  };
-
-  const getPlatformLabel = (url: string) => {
-    if (url.includes('youtube.com') || url.includes('youtu.be')) {
-      return "Watch Now";
-    }
-    return "Listen Now";
-  };
+  const getPlatformIcon = (url: string) => url.includes("youtube.com") || url.includes("youtu.be") ? <Youtube className="w-4 h-4" /> : <Headphones className="w-4 h-4" />;
+  const getPlatformLabel = (url: string) => url.includes("youtube.com") || url.includes("youtu.be") ? "Watch Now" : "Listen Now";
 
   const handleExport = (episodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -206,16 +299,17 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
     toast({ title: "Link copied to clipboard" });
   };
 
-  if (episodes.length === 0) {
+  if (allEpisodes.length === 0) {
     return (
       <Card className="p-12 text-center">
         <h3 className="text-xl font-semibold mb-2">No episodes analyzed yet</h3>
-        <p className="text-muted-foreground">
-          Start by analyzing your first podcast episode above
-        </p>
+        <p className="text-muted-foreground">Start by analyzing your first podcast episode above</p>
       </Card>
     );
   }
+
+  const startIdx = (currentPage - 1) * PAGE_SIZE + 1;
+  const endIdx = Math.min(currentPage * PAGE_SIZE, sortedEpisodes.length);
 
   return (
     <>
@@ -228,172 +322,285 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
                 Analyzed Episodes
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                {selectedIndustries.size > 0 
+                {selectedIndustries.size > 0 || selectedFolderId
                   ? `${filteredEpisodes.length} of ${allEpisodes.length} episodes`
-                  : `${allEpisodes.length} episode${allEpisodes.length !== 1 ? 's' : ''} in database`
-                }
+                  : `${allEpisodes.length} episode${allEpisodes.length !== 1 ? "s" : ""} in database`}
               </p>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSelectedExportId(undefined);
-                setExportModalOpen(true);
-              }}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export All
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setManageFoldersOpen(true)}>
+                <FolderPlus className="w-4 h-4 mr-2" />
+                Folders
+              </Button>
+              <Button variant="outline" onClick={() => { setSelectedExportId(undefined); setExportModalOpen(true); }}>
+                <Download className="w-4 h-4 mr-2" />
+                Export All
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Folder filter bar */}
+        {folders.length > 0 && (
+          <div className="px-6 py-3 border-b bg-muted/10 flex items-center gap-2 flex-wrap">
+            <Folder className="w-4 h-4 text-muted-foreground" />
+            <Badge
+              variant={selectedFolderId === null ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => setSelectedFolderId(null)}
+            >
+              All
+            </Badge>
+            {folders.map(folder => (
+              <Badge
+                key={folder.id}
+                variant={selectedFolderId === folder.id ? "default" : "outline"}
+                className="cursor-pointer"
+                style={selectedFolderId === folder.id ? { backgroundColor: folder.color, borderColor: folder.color } : {}}
+                onClick={() => setSelectedFolderId(folder.id === selectedFolderId ? null : folder.id)}
+              >
+                {folder.name}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        {/* Active industry filters */}
         {selectedIndustries.size > 0 && (
           <div className="px-6 py-4 border-b bg-muted/20">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm text-muted-foreground">Active filters:</span>
                 {Array.from(selectedIndustries).map(industry => (
-                  <Badge 
-                    key={industry}
-                    variant="default"
-                    className="cursor-pointer"
-                    onClick={() => toggleIndustryFilter(industry)}
-                  >
-                    {industry}
-                    <X className="w-3 h-3 ml-1" />
+                  <Badge key={industry} variant="default" className="cursor-pointer" onClick={() => toggleIndustryFilter(industry)}>
+                    {industry}<X className="w-3 h-3 ml-1" />
                   </Badge>
                 ))}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedIndustries(new Set())}
-              >
+              <Button variant="outline" size="sm" onClick={() => setSelectedIndustries(new Set())}>
                 Show All ({allEpisodes.length})
               </Button>
             </div>
           </div>
         )}
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Episode</TableHead>
-              <TableHead>Company</TableHead>
-              <TableHead>Founder(s)</TableHead>
-              <TableHead>Stage</TableHead>
-              <TableHead>Industry</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredEpisodes.map((episode) => (
-              <TableRow
-                key={episode.id}
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => onSelectEpisode(episode.id)}
-              >
-                <TableCell className="font-medium max-w-md">
-                  <div className="space-y-1">
-                    <div className="line-clamp-2">{episode.title}</div>
-                    {episode.release_date && (
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(episode.release_date).toLocaleDateString()}
-                      </div>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {episode.companies?.name || '-'}
-                </TableCell>
-                <TableCell>{episode.founder_names || '-'}</TableCell>
-                <TableCell>
-                  {episode.companies?.current_stage ? (
-                    <Badge variant="secondary">{episode.companies.current_stage}</Badge>
-                  ) : '-'}
-                </TableCell>
-                <TableCell>
-                  {episode.companies?.industry ? (
-                    <div className="flex flex-wrap gap-1">
-                      {parseIndustries(episode.companies.industry).map(industry => (
-                        <Badge
-                          key={industry}
-                          variant={selectedIndustries.has(industry) ? "default" : "outline"}
-                          className="cursor-pointer hover:bg-primary/80 transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleIndustryFilter(industry);
-                          }}
-                        >
-                          {industry}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : '-'}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <BookmarkButton episodeId={episode.id} />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(episode.url, '_blank');
-                          }}
-                        >
-                          {getPlatformIcon(episode.url)}
-                          <span className="ml-2">{getPlatformLabel(episode.url)}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectEpisode(episode.id);
-                          }}
-                        >
-                          <Eye className="w-4 h-4" />
-                          <span className="ml-2">View Details</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={(e) => handleExport(episode.id, e)}>
-                          <Download className="w-4 h-4" />
-                          <span className="ml-2">Export Episode</span>
-                        </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => handleCopyLink(episode.url, e)}>
-                        <Copy className="w-4 h-4" />
-                        <span className="ml-2">Copy Link</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={(e) => handleDelete(episode.id, e)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span className="ml-2">Delete Analysis</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  </div>
-                </TableCell>
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("title")}>
+                  <span className="flex items-center">Episode<SortIcon col="title" /></span>
+                </TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("company")}>
+                  <span className="flex items-center">Company<SortIcon col="company" /></span>
+                </TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("founder")}>
+                  <span className="flex items-center">Founder(s)<SortIcon col="founder" /></span>
+                </TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("stage")}>
+                  <span className="flex items-center">Stage<SortIcon col="stage" /></span>
+                </TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("industry")}>
+                  <span className="flex items-center">Industry<SortIcon col="industry" /></span>
+                </TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("created_at")}>
+                  <span className="flex items-center">Date Added<SortIcon col="created_at" /></span>
+                </TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {paginatedEpisodes.map((episode) => {
+                const episodeFolders = (folderAssignments[episode.id] || [])
+                  .map(fId => folders.find(f => f.id === fId))
+                  .filter(Boolean);
+
+                return (
+                  <TableRow
+                    key={episode.id}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => onSelectEpisode(episode.id)}
+                  >
+                    <TableCell className="font-medium max-w-md">
+                      <div className="space-y-1">
+                        <div className="line-clamp-2">{episode.title}</div>
+                        {episodeFolders.length > 0 && (
+                          <div className="flex gap-1 flex-wrap">
+                            {episodeFolders.map(f => (
+                              <span key={f!.id} className="text-[10px] px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: f!.color }}>
+                                {f!.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{episode.companies?.name || "-"}</TableCell>
+                    <TableCell>{episode.founder_names || "-"}</TableCell>
+                    <TableCell>
+                      {episode.companies?.current_stage ? <Badge variant="secondary">{episode.companies.current_stage}</Badge> : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {episode.companies?.industry ? (
+                        <div className="flex flex-wrap gap-1">
+                          {parseIndustries(episode.companies.industry).map(industry => (
+                            <Badge
+                              key={industry}
+                              variant={selectedIndustries.has(industry) ? "default" : "outline"}
+                              className="cursor-pointer hover:bg-primary/80 transition-colors"
+                              onClick={(e) => { e.stopPropagation(); toggleIndustryFilter(industry); }}
+                            >
+                              {industry}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : "-"}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {episode.created_at ? new Date(episode.created_at).toLocaleDateString() : "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <BookmarkButton episodeId={episode.id} />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(episode.url, "_blank"); }}>
+                              {getPlatformIcon(episode.url)}
+                              <span className="ml-2">{getPlatformLabel(episode.url)}</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSelectEpisode(episode.id); }}>
+                              <Eye className="w-4 h-4" /><span className="ml-2">View Details</span>
+                            </DropdownMenuItem>
+                            {folders.length > 0 && (
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()}>
+                                  <Folder className="w-4 h-4" /><span className="ml-2">Move to Folder</span>
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent>
+                                  {folders.map(folder => {
+                                    const isAssigned = (folderAssignments[episode.id] || []).includes(folder.id);
+                                    return (
+                                      <DropdownMenuItem
+                                        key={folder.id}
+                                        onClick={(e) => { e.stopPropagation(); handleAssignFolder(episode.id, folder.id); }}
+                                      >
+                                        <span className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: folder.color }} />
+                                        {folder.name}
+                                        {isAssigned && <span className="ml-auto text-primary">✓</span>}
+                                      </DropdownMenuItem>
+                                    );
+                                  })}
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={(e) => handleExport(episode.id, e)}>
+                              <Download className="w-4 h-4" /><span className="ml-2">Export Episode</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => handleCopyLink(episode.url, e)}>
+                              <Copy className="w-4 h-4" /><span className="ml-2">Copy Link</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={(e) => handleDelete(episode.id, e)} className="text-destructive focus:text-destructive">
+                              <Trash2 className="w-4 h-4" /><span className="ml-2">Delete Analysis</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Pagination */}
+        {sortedEpisodes.length > PAGE_SIZE && (
+          <div className="px-6 py-4 border-t flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Showing {startIdx}–{endIdx} of {sortedEpisodes.length} episodes
+            </p>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                .reduce<(number | "...")[]>((acc, p, i, arr) => {
+                  if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) =>
+                  p === "..." ? (
+                    <span key={`ellipsis-${i}`} className="px-2 text-muted-foreground">…</span>
+                  ) : (
+                    <Button
+                      key={p}
+                      variant={currentPage === p ? "default" : "outline"}
+                      size="sm"
+                      className="w-8 h-8 p-0"
+                      onClick={() => setCurrentPage(p as number)}
+                    >
+                      {p}
+                    </Button>
+                  )
+                )}
+              <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
-      <ExportModal
-        episodeId={selectedExportId}
-        open={exportModalOpen}
-        onOpenChange={setExportModalOpen}
-      />
+
+      {/* Manage Folders Dialog */}
+      <Dialog open={manageFoldersOpen} onOpenChange={setManageFoldersOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Manage Folders</DialogTitle>
+            <DialogDescription>Create folders to organize your episodes.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                placeholder="New folder name..."
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+              />
+              <Button size="sm" onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
+                Add
+              </Button>
+            </div>
+            {folders.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No folders yet</p>
+            ) : (
+              <div className="space-y-2">
+                {folders.map(folder => (
+                  <div key={folder.id} className="flex items-center justify-between p-2 rounded-md border">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: folder.color }} />
+                      <span className="text-sm">{folder.name}</span>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteFolder(folder.id)}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ExportModal episodeId={selectedExportId} open={exportModalOpen} onOpenChange={setExportModalOpen} />
     </>
   );
 };

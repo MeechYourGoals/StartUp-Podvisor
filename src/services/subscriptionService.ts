@@ -76,8 +76,8 @@ export async function getRevenueCatOfferings() {
   }
 
   try {
-    const { offerings } = await Purchases.getOfferings();
-    return offerings.current;
+    const result = await Purchases.getOfferings();
+    return (result as any)?.current ?? null;
   } catch (error) {
     console.error('RevenueCat: Failed to get offerings', error);
     return null;
@@ -91,8 +91,8 @@ export async function purchasePackage(packageId: string): Promise<boolean> {
   }
 
   try {
-    const { offerings } = await Purchases.getOfferings();
-    const pkg = offerings.current?.availablePackages.find(p => p.identifier === packageId);
+    const result = await Purchases.getOfferings();
+    const pkg = (result as any)?.current?.availablePackages?.find((p: any) => p.identifier === packageId);
 
     if (!pkg) {
       console.error('RevenueCat: Package not found', packageId);
@@ -157,48 +157,53 @@ export async function syncSubscriptionToSupabase(tier: SubscriptionTier): Promis
   }
 }
 
-// Get subscription info from Supabase
+// Get subscription info from Supabase (direct queries, no RPC)
 export async function getSubscriptionInfo(): Promise<SubscriptionInfo | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // Get subscription from database using RPC
-    const { data: limits, error } = await supabase.rpc('check_tier_limits', {
-      p_user_id: user.id,
-    });
-
-    if (error) {
-      console.error('Failed to get tier limits', error);
-      // Return default free tier
-      return {
-        tier: 'free',
-        limits: {
-          profiles: { max: 1, used: 0 },
-          bookmarks: { max: 5, used: 0 },
-          analyses: { max: 4, used: 0 },
-        },
-        isActive: true,
-      };
-    }
-
-    // Get subscription details
+    // Get subscription tier
     const { data: subscription } = await supabase
-      .from('user_subscriptions')
+      .from('user_subscriptions' as any)
       .select('*')
       .eq('user_id', user.id)
       .single();
 
+    const tier: SubscriptionTier = (subscription as any)?.tier || 'free';
+    const tierLimits = TIER_LIMITS[tier];
+
+    // Get profiles count
+    const { count: profilesUsed } = await supabase
+      .from('user_startup_profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id);
+
+    // Get bookmarks count
+    const { count: bookmarksUsed } = await supabase
+      .from('bookmarked_episodes')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id);
+
+    // Get monthly analyses count
+    const monthYear = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+    const { data: usage } = await supabase
+      .from('user_monthly_usage' as any)
+      .select('analyses_count')
+      .eq('user_id', user.id)
+      .eq('month_year', monthYear)
+      .single();
+
     return {
-      tier: (limits?.tier || 'free') as SubscriptionTier,
+      tier,
       limits: {
-        profiles: limits?.profiles || { max: 1, used: 0 },
-        bookmarks: limits?.bookmarks || { max: 5, used: 0 },
-        analyses: limits?.analyses || { max: 4, used: 0 },
+        profiles: { max: tierLimits.profiles.max, used: profilesUsed || 0 },
+        bookmarks: { max: tierLimits.bookmarks.max, used: bookmarksUsed || 0 },
+        analyses: { max: tierLimits.analyses.max, used: (usage as any)?.analyses_count || 0 },
       },
       isActive: true,
-      currentPeriodEnd: subscription?.current_period_end,
-      cancelAtPeriodEnd: subscription?.cancel_at_period_end,
+      currentPeriodEnd: (subscription as any)?.current_period_end,
+      cancelAtPeriodEnd: (subscription as any)?.cancel_at_period_end,
     };
   } catch (error) {
     console.error('Error getting subscription info', error);
@@ -240,22 +245,41 @@ export function canPerformAction(
   return { allowed: true };
 }
 
-// Increment analysis count
+// Increment analysis count (direct upsert)
 export async function incrementAnalysisCount(): Promise<number> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return 0;
 
-    const { data, error } = await supabase.rpc('increment_analysis_count', {
-      p_user_id: user.id,
-    });
+    const monthYear = new Date().toISOString().slice(0, 7);
+
+    // Try to get existing record
+    const { data: existing } = await supabase
+      .from('user_monthly_usage' as any)
+      .select('analyses_count')
+      .eq('user_id', user.id)
+      .eq('month_year', monthYear)
+      .single();
+
+    const newCount = ((existing as any)?.analyses_count || 0) + 1;
+
+    const { error } = await supabase
+      .from('user_monthly_usage' as any)
+      .upsert({
+        user_id: user.id,
+        month_year: monthYear,
+        analyses_count: newCount,
+        updated_at: new Date().toISOString(),
+      } as any, {
+        onConflict: 'user_id,month_year',
+      });
 
     if (error) {
       console.error('Failed to increment analysis count', error);
       return 0;
     }
 
-    return data || 0;
+    return newCount;
   } catch (error) {
     console.error('Error incrementing analysis count', error);
     return 0;
