@@ -8,7 +8,7 @@ import { ProfileSettings } from "@/components/ProfileSettings";
 import { PublicLanding } from "@/components/PublicLanding";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/contexts/SubscriptionContext";
-import { Loader2, Bookmark, LogOut, Briefcase } from "lucide-react";
+import { Loader2, Bookmark, LogOut, Briefcase, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -17,6 +17,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Card } from "@/components/ui/card";
@@ -31,6 +37,7 @@ const Index = () => {
   const { subscription } = useSubscription();
   const navigate = useNavigate();
   const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const isMobile = useMediaQuery("(max-width: 639px)");
 
   // Show public landing page for non-authenticated users
   if (!loading && !user) {
@@ -55,35 +62,65 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <div className="fixed top-4 right-4 z-50 flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => signOut()}>
-          <LogOut className="h-4 w-4 mr-2" />
-          Sign Out
-        </Button>
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 safe-area-inset">
+      {/* Mobile nav */}
+      {isMobile ? (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border safe-top">
+          <div className="flex items-center justify-between px-4 py-2">
+            <span className="font-bold text-sm text-primary">Founder Lessons</span>
+            <div className="flex items-center gap-1">
+              <ThemeToggle />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Menu className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => handleToggle("profiles")}>
+                    <Briefcase className="h-4 w-4 mr-2" />
+                    Startup Profiles
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleToggle("bookmarks")}>
+                    <Bookmark className="h-4 w-4 mr-2" />
+                    Bookmarks
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => signOut()}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="fixed top-4 right-4 z-50 flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => signOut()}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+          <Button
+            variant={profileOpen && activeTab === "profiles" ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleToggle("profiles")}
+          >
+            <Briefcase className="h-4 w-4 mr-2" />
+            Startup Profiles
+          </Button>
+          <Button
+            variant={profileOpen && activeTab === "bookmarks" ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleToggle("bookmarks")}
+          >
+            <Bookmark className="h-4 w-4 mr-2" />
+            Bookmarks
+          </Button>
+          <ThemeToggle />
+        </div>
+      )}
 
-        <Button
-          variant={profileOpen && activeTab === "profiles" ? "default" : "outline"}
-          size="sm"
-          onClick={() => handleToggle("profiles")}
-        >
-          <Briefcase className="h-4 w-4 mr-2" />
-          Startup Profiles
-        </Button>
-
-        <Button
-          variant={profileOpen && activeTab === "bookmarks" ? "default" : "outline"}
-          size="sm"
-          onClick={() => handleToggle("bookmarks")}
-        >
-          <Bookmark className="h-4 w-4 mr-2" />
-          Bookmarks
-        </Button>
-
-        <ThemeToggle />
-      </div>
-
-      {/* Desktop Profile Box - Positioned relative to align with content */}
+      {/* Desktop Profile Box */}
       {isDesktop && profileOpen && (
         <div className="fixed inset-x-0 top-[80px] z-40 pointer-events-none">
           <div className="container mx-auto max-w-6xl px-4 relative">
@@ -103,10 +140,10 @@ const Index = () => {
         </div>
       )}
 
-      {/* Mobile Sheet - Fallback */}
+      {/* Mobile/Tablet Sheet */}
       {!isDesktop && (
         <Sheet open={profileOpen} onOpenChange={setProfileOpen}>
-          <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+          <SheetContent side="right" className="w-full sm:w-[400px] safe-top">
             <SheetHeader>
               <SheetTitle>My Bookmarks & Settings</SheetTitle>
               <SheetDescription>
@@ -128,8 +165,10 @@ const Index = () => {
         </Sheet>
       )}
 
-      <HeroSection />
-      <div className="container mx-auto px-4 py-12 space-y-12 max-w-6xl">
+      <div className={isMobile ? "pt-12" : ""}>
+        <HeroSection />
+      </div>
+      <div className="container mx-auto px-4 py-8 sm:py-12 space-y-8 sm:space-y-12 max-w-6xl safe-bottom">
         <AnalysisForm />
         {selectedEpisodeId ? (
           <EpisodeDetail 
