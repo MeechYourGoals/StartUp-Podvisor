@@ -1,0 +1,193 @@
+import { useState, useCallback } from "react";
+import { Upload, FileText, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
+
+interface DeckUploadZoneProps {
+  onFieldsExtracted: (fields: {
+    company_name?: string;
+    description?: string;
+    stage?: string;
+    industry?: string;
+    funding_raised?: string;
+    employee_count?: number;
+    company_website?: string;
+    role?: string;
+  }) => void;
+}
+
+export const DeckUploadZone = ({ onFieldsExtracted }: DeckUploadZoneProps) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const handleFile = useCallback(async (file: File) => {
+    const validTypes = [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/vnd.ms-powerpoint",
+    ];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF or PowerPoint file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Maximum file size is 20MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setFileName(file.name);
+    setUploading(true);
+    setProgress(20);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const filePath = `${user.id}/${Date.now()}-${file.name}`;
+      setProgress(40);
+
+      const { error: uploadError } = await supabase.storage
+        .from("startup-decks")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      setProgress(60);
+      setUploading(false);
+      setAnalyzing(true);
+      setProgress(70);
+
+      const { data, error } = await supabase.functions.invoke("parse-deck", {
+        body: { fileUrl: filePath },
+      });
+
+      setProgress(90);
+
+      if (error) throw error;
+
+      if (data?.data) {
+        onFieldsExtracted(data.data);
+        toast({
+          title: "Deck analyzed!",
+          description: "Fields have been pre-filled from your deck. Review and edit as needed.",
+        });
+      } else if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      setProgress(100);
+    } catch (error: any) {
+      console.error("Deck upload/parse error:", error);
+      toast({
+        title: "Analysis failed",
+        description: error.message || "Could not analyze the deck. Please fill in the fields manually.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+      setAnalyzing(false);
+      setTimeout(() => {
+        setProgress(0);
+        setFileName(null);
+      }, 2000);
+    }
+  }, [onFieldsExtracted, toast]);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    },
+    [handleFile]
+  );
+
+  const handleFileInput = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) handleFile(file);
+      e.target.value = "";
+    },
+    [handleFile]
+  );
+
+  const isProcessing = uploading || analyzing;
+
+  return (
+    <div
+      className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+        isDragging
+          ? "border-primary bg-primary/5"
+          : isProcessing
+          ? "border-muted bg-muted/20"
+          : "border-muted-foreground/25 hover:border-primary/50"
+      }`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={handleDrop}
+    >
+      {isProcessing ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            {analyzing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                AI is analyzing your deck...
+              </>
+            ) : (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Uploading {fileName}...
+              </>
+            )}
+          </div>
+          <Progress value={progress} className="h-1.5" />
+        </div>
+      ) : (
+        <label className="cursor-pointer block">
+          <input
+            type="file"
+            className="hidden"
+            accept=".pdf,.pptx,.ppt"
+            onChange={handleFileInput}
+            disabled={isProcessing}
+          />
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            {fileName && progress === 100 ? (
+              <>
+                <FileText className="w-4 h-4 text-primary" />
+                <span className="text-primary">Deck analyzed successfully!</span>
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4" />
+                <span>
+                  Drop your pitch deck here or <span className="text-primary underline">browse</span>
+                </span>
+                <span className="text-xs">(PDF, PPTX)</span>
+              </>
+            )}
+          </div>
+        </label>
+      )}
+    </div>
+  );
+};

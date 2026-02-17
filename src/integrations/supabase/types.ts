@@ -14,75 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      user_subscriptions: {
-        Row: {
-          id: string
-          user_id: string
-          tier: Database["public"]["Enums"]["subscription_tier"]
-          stripe_customer_id: string | null
-          stripe_subscription_id: string | null
-          revenuecat_app_user_id: string | null
-          current_period_start: string | null
-          current_period_end: string | null
-          cancel_at_period_end: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          tier?: Database["public"]["Enums"]["subscription_tier"]
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          revenuecat_app_user_id?: string | null
-          current_period_start?: string | null
-          current_period_end?: string | null
-          cancel_at_period_end?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          tier?: Database["public"]["Enums"]["subscription_tier"]
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          revenuecat_app_user_id?: string | null
-          current_period_start?: string | null
-          current_period_end?: string | null
-          cancel_at_period_end?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      user_monthly_usage: {
-        Row: {
-          id: string
-          user_id: string
-          month_year: string
-          analyses_count: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          month_year: string
-          analyses_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          month_year?: string
-          analyses_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       bookmark_folders: {
         Row: {
           color: string | null
@@ -271,6 +202,69 @@ export type Database = {
         }
         Relationships: []
       }
+      episode_folder_assignments: {
+        Row: {
+          created_at: string
+          episode_id: string
+          folder_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          episode_id: string
+          folder_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          episode_id?: string
+          folder_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "episode_folder_assignments_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "episode_folder_assignments_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "episode_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      episode_folders: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       episodes: {
         Row: {
           analysis_status: string | null
@@ -438,6 +432,33 @@ export type Database = {
         }
         Relationships: []
       }
+      user_monthly_usage: {
+        Row: {
+          analyses_count: number
+          created_at: string
+          id: string
+          month_year: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          analyses_count?: number
+          created_at?: string
+          id?: string
+          month_year: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          analyses_count?: number
+          created_at?: string
+          id?: string
+          month_year?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -464,6 +485,7 @@ export type Database = {
           company_name: string
           company_website: string | null
           created_at: string | null
+          deck_url: string | null
           description: string
           employee_count: number | null
           funding_raised: string | null
@@ -479,6 +501,7 @@ export type Database = {
           company_name: string
           company_website?: string | null
           created_at?: string | null
+          deck_url?: string | null
           description: string
           employee_count?: number | null
           funding_raised?: string | null
@@ -494,6 +517,7 @@ export type Database = {
           company_name?: string
           company_website?: string | null
           created_at?: string | null
+          deck_url?: string | null
           description?: string
           employee_count?: number | null
           funding_raised?: string | null
@@ -504,6 +528,48 @@ export type Database = {
           updated_at?: string | null
           user_id?: string | null
           valuation?: string | null
+        }
+        Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          revenuecat_app_user_id: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          tier: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          revenuecat_app_user_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          revenuecat_app_user_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -522,7 +588,6 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
-      subscription_tier: "free" | "seed" | "series_z"
       startup_stage:
         | "pre_seed"
         | "seed"
@@ -659,7 +724,6 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
-      subscription_tier: ["free", "seed", "series_z"],
       startup_stage: [
         "pre_seed",
         "seed",

@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DeckUploadZone } from "@/components/DeckUploadZone";
 
 type StageType = "pre_seed" | "seed" | "series_a" | "series_b_plus" | "growth" | "public" | "bootstrapped";
 
@@ -123,6 +124,21 @@ export const StartupProfileDialog = ({
 
         <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-4">
+            <DeckUploadZone
+              onFieldsExtracted={(fields) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  ...(fields.company_name && { company_name: fields.company_name }),
+                  ...(fields.description && { description: fields.description }),
+                  ...(fields.stage && { stage: fields.stage as StageType }),
+                  ...(fields.industry && { industry: fields.industry }),
+                  ...(fields.funding_raised && { funding_raised: fields.funding_raised }),
+                  ...(fields.employee_count && { employee_count: fields.employee_count }),
+                  ...(fields.company_website && { company_website: fields.company_website }),
+                  ...(fields.role && { role: fields.role }),
+                }));
+              }}
+            />
             <div className="space-y-2">
               <Label>Company Name *</Label>
               <Input
