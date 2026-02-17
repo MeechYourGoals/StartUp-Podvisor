@@ -62,25 +62,11 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
   useEffect(() => {
     const fetchEpisodeDetails = async () => {
       try {
-        // Fetch episode with company data
         const { data: episodeData, error: episodeError } = await supabase
           .from('episodes')
           .select(`
-            id,
-            title,
-            release_date,
-            url,
-            founder_names,
-            companies (
-              name,
-              founding_year,
-              current_stage,
-              funding_raised,
-              valuation,
-              employee_count,
-              industry,
-              status
-            )
+            id, title, release_date, url, founder_names,
+            companies (name, founding_year, current_stage, funding_raised, valuation, employee_count, industry, status)
           `)
           .eq('id', episodeId)
           .single();
@@ -88,7 +74,6 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
         if (episodeError) throw episodeError;
         setEpisode(episodeData);
 
-        // Fetch lessons
         const { data: lessonsData, error: lessonsError } = await supabase
           .from('lessons')
           .select('*')
@@ -98,7 +83,6 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
         if (lessonsError) throw lessonsError;
         setLessons(lessonsData || []);
 
-        // Fetch callouts
         const { data: calloutsData, error: calloutsError } = await supabase
           .from('chavel_callouts')
           .select('*')
@@ -108,7 +92,6 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
         if (calloutsError) throw calloutsError;
         setCallouts(calloutsData || []);
 
-        // Fetch personalized insights
         const { data: insightsData, error: insightsError } = await supabase
           .from('personalized_insights')
           .select('*')
@@ -137,7 +120,7 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
 
   if (loading) {
     return (
-      <Card className="p-8">
+      <Card className="p-6 sm:p-8">
         <div className="text-center text-muted-foreground">Loading episode details...</div>
       </Card>
     );
@@ -145,36 +128,36 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
 
   if (!episode) {
     return (
-      <Card className="p-8">
+      <Card className="p-6 sm:p-8">
         <div className="text-center text-muted-foreground">Episode not found</div>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Button variant="ghost" onClick={onBack} className="mb-4">
+    <div className="space-y-4 sm:space-y-6">
+      <Button variant="ghost" onClick={onBack} className="mb-2 sm:mb-4">
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to All Episodes
       </Button>
 
-      <Card className="p-8">
-        <div className="space-y-6">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold mb-4">{episode.title}</h1>
+      <Card className="p-4 sm:p-8">
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-3xl font-bold mb-2 sm:mb-4">{episode.title}</h1>
               {episode.founder_names && (
-                <p className="text-lg text-muted-foreground mb-2">
+                <p className="text-base sm:text-lg text-muted-foreground mb-1 sm:mb-2">
                   with {episode.founder_names}
                 </p>
               )}
               {episode.release_date && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   Released: {new Date(episode.release_date).toLocaleDateString()}
                 </p>
               )}
             </div>
-            <Button asChild size="lg">
+            <Button asChild size="sm" className="sm:size-default w-full sm:w-auto">
               <a href={episode.url} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-4 h-4 mr-2" />
                 {episode.url.includes('youtube.com') || episode.url.includes('youtu.be') 
@@ -187,9 +170,9 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
           {episode.companies && (
             <>
               <Separator />
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div>
-                  <h3 className="text-xl font-semibold mb-4">Company Snapshot</h3>
+                  <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">Company Snapshot</h3>
                   <div className="space-y-2">
                     <InfoRow label="Company" value={episode.companies.name} />
                     <InfoRow label="Founded" value={episode.companies.founding_year?.toString()} />
@@ -199,7 +182,7 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold mb-4">Metrics</h3>
+                  <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">Metrics</h3>
                   <div className="space-y-2">
                     <InfoRow label="Funding Raised" value={episode.companies.funding_raised} />
                     <InfoRow label="Valuation" value={episode.companies.valuation} />
@@ -213,27 +196,27 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
       </Card>
 
       {lessons.length > 0 && (
-        <Card className="p-8">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-primary" />
+        <Card className="p-4 sm:p-8">
+          <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             Top Lessons ({lessons.length})
           </h2>
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {lessons.map((lesson, index) => (
-              <div key={lesson.id} className="border-l-4 border-primary pl-6 py-2">
-                <div className="flex items-start justify-between mb-2">
+              <div key={lesson.id} className="border-l-4 border-primary pl-4 sm:pl-6 py-2">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-2 gap-2">
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">#{index + 1}</Badge>
                     {lesson.category && <Badge variant="outline">{lesson.category}</Badge>}
                   </div>
-                  <div className="flex gap-2 text-sm">
+                  <div className="flex gap-2 text-xs sm:text-sm">
                     <Badge>Impact: {lesson.impact_score}/10</Badge>
-                    <Badge>Actionability: {lesson.actionability_score}/10</Badge>
+                    <Badge>Action: {lesson.actionability_score}/10</Badge>
                   </div>
                 </div>
-                <p className="text-foreground leading-relaxed mb-2">{lesson.lesson_text}</p>
+                <p className="text-sm sm:text-base text-foreground leading-relaxed mb-2">{lesson.lesson_text}</p>
                 {lesson.founder_attribution && (
-                  <p className="text-sm text-muted-foreground italic">
+                  <p className="text-xs sm:text-sm text-muted-foreground italic">
                     — {lesson.founder_attribution}
                   </p>
                 )}
@@ -244,42 +227,40 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
       )}
 
       {personalizedInsights.length > 0 && (
-        <Card className="p-8 bg-gradient-to-br from-primary/5 to-accent/5">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-            <Target className="w-6 h-6 text-primary" />
+        <Card className="p-4 sm:p-8 bg-gradient-to-br from-primary/5 to-accent/5">
+          <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
+            <Target className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             Personalized for Your Startup ({personalizedInsights.length})
           </h2>
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {lessons.map((lesson) => {
               const insight = personalizedInsights.find(i => i.lesson_id === lesson.id);
               if (!insight) return null;
               
               return (
-                <div key={lesson.id} className="space-y-4">
-                  <div className="p-5 bg-card rounded-lg border-2 border-primary/20">
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg mb-2">{lesson.lesson_text}</h3>
-                        <div className="flex gap-2 mb-3">
-                          <Badge>Impact: {lesson.impact_score}/10</Badge>
-                          <Badge>Actionability: {lesson.actionability_score}/10</Badge>
-                        </div>
+                <div key={lesson.id} className="space-y-3 sm:space-y-4">
+                  <div className="p-3 sm:p-5 bg-card rounded-lg border-2 border-primary/20">
+                    <div className="flex-1 mb-3">
+                      <h3 className="font-semibold text-sm sm:text-lg mb-2">{lesson.lesson_text}</h3>
+                      <div className="flex gap-2 mb-3 flex-wrap">
+                        <Badge className="text-xs">Impact: {lesson.impact_score}/10</Badge>
+                        <Badge className="text-xs">Action: {lesson.actionability_score}/10</Badge>
                       </div>
                     </div>
                     
-                    <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-4 rounded-lg">
+                    <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-3 sm:p-4 rounded-lg">
                       <div className="flex items-start gap-2 mb-3">
-                        <Lightbulb className="w-5 h-5 text-primary flex-shrink-0 mt-1" />
-                        <div className="flex-1">
-                          <p className="font-medium text-primary mb-1">For Your Startup:</p>
-                          <p className="text-foreground leading-relaxed">{insight.personalized_text}</p>
+                        <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0 mt-1" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-primary mb-1 text-sm">For Your Startup:</p>
+                          <p className="text-sm sm:text-base text-foreground leading-relaxed">{insight.personalized_text}</p>
                         </div>
                       </div>
                       
                       {insight.action_items && insight.action_items.length > 0 && (
-                        <div className="mt-4">
-                          <p className="font-medium text-sm mb-2">✅ Action Items:</p>
-                          <ol className="list-decimal list-inside space-y-1 text-sm">
+                        <div className="mt-3 sm:mt-4">
+                          <p className="font-medium text-xs sm:text-sm mb-2">✅ Action Items:</p>
+                          <ol className="list-decimal list-inside space-y-1 text-xs sm:text-sm">
                             {insight.action_items.map((item, idx) => (
                               <li key={idx} className="text-muted-foreground">{item}</li>
                             ))}
@@ -288,7 +269,7 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
                       )}
                       
                       <div className="mt-3">
-                        <Badge variant="outline">Relevance: {insight.relevance_score}/10</Badge>
+                        <Badge variant="outline" className="text-xs">Relevance: {insight.relevance_score}/10</Badge>
                       </div>
                     </div>
                   </div>
@@ -300,19 +281,19 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
       )}
 
       {callouts.length > 0 && (
-        <Card className="p-8 bg-accent/5">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-            <Target className="w-6 h-6 text-accent" />
+        <Card className="p-4 sm:p-8 bg-accent/5">
+          <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
+            <Target className="w-5 h-5 sm:w-6 sm:h-6 text-accent" />
             Relevant for Chravel ({callouts.length})
           </h2>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {callouts.map((callout) => (
-              <div key={callout.id} className="flex items-start gap-4 p-4 bg-card rounded-lg border">
-                <Lightbulb className="w-5 h-5 text-accent flex-shrink-0 mt-1" />
-                <div className="flex-1">
-                  <p className="text-foreground leading-relaxed">{callout.callout_text}</p>
+              <div key={callout.id} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-card rounded-lg border">
+                <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5 text-accent flex-shrink-0 mt-1" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm sm:text-base text-foreground leading-relaxed">{callout.callout_text}</p>
                   <div className="mt-2">
-                    <Badge variant="outline">Relevance: {callout.relevance_score}/10</Badge>
+                    <Badge variant="outline" className="text-xs">Relevance: {callout.relevance_score}/10</Badge>
                   </div>
                 </div>
               </div>
@@ -327,7 +308,7 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
 const InfoRow = ({ label, value }: { label: string; value: string | null | undefined }) => {
   if (!value) return null;
   return (
-    <div className="flex justify-between py-1">
+    <div className="flex justify-between py-1 text-sm">
       <span className="text-muted-foreground">{label}:</span>
       <span className="font-medium">{value}</span>
     </div>

@@ -20,6 +20,7 @@ import {
 import { ExportModal } from "@/components/ExportModal";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { useToast } from "@/hooks/use-toast";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -64,6 +65,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [selectedExportId, setSelectedExportId] = useState<string | undefined>();
   const { toast } = useToast();
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   // Sorting
   const [sortColumn, setSortColumn] = useState<SortColumn>("created_at");
@@ -97,23 +99,18 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   // Filter → Sort → Paginate
   const filteredEpisodes = useMemo(() => {
     let result = allEpisodes;
-
-    // Industry filter
     if (selectedIndustries.size > 0) {
       result = result.filter(ep => {
         const industries = parseIndustries(ep.companies?.industry);
         return industries.some(ind => selectedIndustries.has(ind));
       });
     }
-
-    // Folder filter
     if (selectedFolderId) {
       const episodeIdsInFolder = Object.entries(folderAssignments)
         .filter(([, folderIds]) => folderIds.includes(selectedFolderId))
         .map(([epId]) => epId);
       result = result.filter(ep => episodeIdsInFolder.includes(ep.id));
     }
-
     return result;
   }, [allEpisodes, selectedIndustries, selectedFolderId, folderAssignments]);
 
@@ -234,7 +231,6 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
 
     const existing = folderAssignments[episodeId] || [];
     if (existing.includes(folderId)) {
-      // Remove assignment
       await supabase
         .from("episode_folder_assignments" as any)
         .delete()
@@ -242,7 +238,6 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
         .eq("folder_id", folderId)
         .eq("user_id", user.id);
     } else {
-      // Add assignment
       await supabase
         .from("episode_folder_assignments" as any)
         .insert({ user_id: user.id, episode_id: episodeId, folder_id: folderId } as any);
@@ -277,11 +272,10 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
     return () => window.removeEventListener("episodeAnalyzed", handleEpisodeAnalyzed);
   }, []);
 
-  // Reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [selectedFolderId]);
 
   if (loading) {
-    return <Card className="p-8"><div className="text-center text-muted-foreground">Loading episodes...</div></Card>;
+    return <Card className="p-6 sm:p-8"><div className="text-center text-muted-foreground">Loading episodes...</div></Card>;
   }
 
   const getPlatformIcon = (url: string) => url.includes("youtube.com") || url.includes("youtu.be") ? <Youtube className="w-4 h-4" /> : <Headphones className="w-4 h-4" />;
@@ -301,9 +295,9 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
 
   if (allEpisodes.length === 0) {
     return (
-      <Card className="p-12 text-center">
-        <h3 className="text-xl font-semibold mb-2">No episodes analyzed yet</h3>
-        <p className="text-muted-foreground">Start by analyzing your first podcast episode above</p>
+      <Card className="p-8 sm:p-12 text-center">
+        <h3 className="text-lg sm:text-xl font-semibold mb-2">No episodes analyzed yet</h3>
+        <p className="text-muted-foreground text-sm sm:text-base">Start by analyzing your first podcast episode above</p>
       </Card>
     );
   }
@@ -311,42 +305,153 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   const startIdx = (currentPage - 1) * PAGE_SIZE + 1;
   const endIdx = Math.min(currentPage * PAGE_SIZE, sortedEpisodes.length);
 
+  // Mobile card view for each episode
+  const MobileEpisodeCard = ({ episode }: { episode: Episode }) => {
+    const episodeFolders = (folderAssignments[episode.id] || [])
+      .map(fId => folders.find(f => f.id === fId))
+      .filter(Boolean);
+
+    return (
+      <div
+        className="p-4 border-b border-border last:border-b-0 active:bg-muted/50 transition-colors"
+        onClick={() => onSelectEpisode(episode.id)}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-sm line-clamp-2 mb-1">{episode.title}</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {episode.companies?.name && <span>{episode.companies.name}</span>}
+              {episode.founder_names && <span>{episode.founder_names}</span>}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {episode.companies?.current_stage && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                  {episode.companies.current_stage}
+                </Badge>
+              )}
+              {episodeFolders.map(f => (
+                <span key={f!.id} className="text-[10px] px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: f!.color }}>
+                  {f!.name}
+                </span>
+              ))}
+              {episode.created_at && (
+                <span className="text-[10px] text-muted-foreground">
+                  {new Date(episode.created_at).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            <BookmarkButton episodeId={episode.id} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(episode.url, "_blank"); }}>
+                  {getPlatformIcon(episode.url)}
+                  <span className="ml-2">{getPlatformLabel(episode.url)}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSelectEpisode(episode.id); }}>
+                  <Eye className="w-4 h-4" /><span className="ml-2">View Details</span>
+                </DropdownMenuItem>
+                {folders.length > 0 && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()}>
+                      <Folder className="w-4 h-4" /><span className="ml-2">Move to Folder</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {folders.map(folder => {
+                        const isAssigned = (folderAssignments[episode.id] || []).includes(folder.id);
+                        return (
+                          <DropdownMenuItem
+                            key={folder.id}
+                            onClick={(e) => { e.stopPropagation(); handleAssignFolder(episode.id, folder.id); }}
+                          >
+                            <span className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: folder.color }} />
+                            {folder.name}
+                            {isAssigned && <span className="ml-auto text-primary">✓</span>}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={(e) => handleExport(episode.id, e)}>
+                  <Download className="w-4 h-4" /><span className="ml-2">Export Episode</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => handleCopyLink(episode.url, e)}>
+                  <Copy className="w-4 h-4" /><span className="ml-2">Copy Link</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={(e) => handleDelete(episode.id, e)} className="text-destructive focus:text-destructive">
+                  <Trash2 className="w-4 h-4" /><span className="ml-2">Delete Analysis</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
-        <div className="p-6 border-b bg-muted/30">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <TrendingUp className="w-6 h-6 text-primary" />
-                Analyzed Episodes
+        <div className="p-4 sm:p-6 border-b bg-muted/30">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-primary flex-shrink-0" />
+                <span className="truncate">Analyzed Episodes</span>
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                 {selectedIndustries.size > 0 || selectedFolderId
                   ? `${filteredEpisodes.length} of ${allEpisodes.length} episodes`
                   : `${allEpisodes.length} episode${allEpisodes.length !== 1 ? "s" : ""} in database`}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setManageFoldersOpen(true)}>
-                <FolderPlus className="w-4 h-4 mr-2" />
-                Folders
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => setManageFoldersOpen(true)}>
+                <FolderPlus className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Folders</span>
               </Button>
-              <Button variant="outline" onClick={() => { setSelectedExportId(undefined); setExportModalOpen(true); }}>
-                <Download className="w-4 h-4 mr-2" />
-                Export All
+              <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => { setSelectedExportId(undefined); setExportModalOpen(true); }}>
+                <Download className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Export All</span>
               </Button>
             </div>
           </div>
         </div>
 
+        {/* Sort controls for mobile */}
+        {isMobile && (
+          <div className="px-4 py-2 border-b bg-muted/10 flex items-center gap-2 overflow-x-auto scroll-touch">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Sort:</span>
+            {(["title", "company", "founder", "created_at"] as SortColumn[]).map(col => (
+              <Badge
+                key={col}
+                variant={sortColumn === col ? "default" : "outline"}
+                className="cursor-pointer whitespace-nowrap text-[10px]"
+                onClick={() => handleSort(col)}
+              >
+                {col === "created_at" ? "Date" : col.charAt(0).toUpperCase() + col.slice(1)}
+                {sortColumn === col && (sortDirection === "asc" ? " ↑" : " ↓")}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         {/* Folder filter bar */}
         {folders.length > 0 && (
-          <div className="px-6 py-3 border-b bg-muted/10 flex items-center gap-2 flex-wrap">
-            <Folder className="w-4 h-4 text-muted-foreground" />
+          <div className="px-4 sm:px-6 py-2 sm:py-3 border-b bg-muted/10 flex items-center gap-2 overflow-x-auto scroll-touch">
+            <Folder className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             <Badge
               variant={selectedFolderId === null ? "default" : "outline"}
-              className="cursor-pointer"
+              className="cursor-pointer whitespace-nowrap"
               onClick={() => setSelectedFolderId(null)}
             >
               All
@@ -355,7 +460,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
               <Badge
                 key={folder.id}
                 variant={selectedFolderId === folder.id ? "default" : "outline"}
-                className="cursor-pointer"
+                className="cursor-pointer whitespace-nowrap"
                 style={selectedFolderId === folder.id ? { backgroundColor: folder.color, borderColor: folder.color } : {}}
                 onClick={() => setSelectedFolderId(folder.id === selectedFolderId ? null : folder.id)}
               >
@@ -367,170 +472,179 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
 
         {/* Active industry filters */}
         {selectedIndustries.size > 0 && (
-          <div className="px-6 py-4 border-b bg-muted/20">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b bg-muted/20">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-muted-foreground">Active filters:</span>
+                <span className="text-xs sm:text-sm text-muted-foreground">Filters:</span>
                 {Array.from(selectedIndustries).map(industry => (
-                  <Badge key={industry} variant="default" className="cursor-pointer" onClick={() => toggleIndustryFilter(industry)}>
+                  <Badge key={industry} variant="default" className="cursor-pointer text-xs" onClick={() => toggleIndustryFilter(industry)}>
                     {industry}<X className="w-3 h-3 ml-1" />
                   </Badge>
                 ))}
               </div>
-              <Button variant="outline" size="sm" onClick={() => setSelectedIndustries(new Set())}>
+              <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedIndustries(new Set())}>
                 Show All ({allEpisodes.length})
               </Button>
             </div>
           </div>
         )}
 
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("title")}>
-                  <span className="flex items-center">Episode<SortIcon col="title" /></span>
-                </TableHead>
-                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("company")}>
-                  <span className="flex items-center">Company<SortIcon col="company" /></span>
-                </TableHead>
-                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("founder")}>
-                  <span className="flex items-center">Founder(s)<SortIcon col="founder" /></span>
-                </TableHead>
-                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("stage")}>
-                  <span className="flex items-center">Stage<SortIcon col="stage" /></span>
-                </TableHead>
-                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("industry")}>
-                  <span className="flex items-center">Industry<SortIcon col="industry" /></span>
-                </TableHead>
-                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("created_at")}>
-                  <span className="flex items-center">Date Added<SortIcon col="created_at" /></span>
-                </TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedEpisodes.map((episode) => {
-                const episodeFolders = (folderAssignments[episode.id] || [])
-                  .map(fId => folders.find(f => f.id === fId))
-                  .filter(Boolean);
+        {/* Mobile: Card list / Desktop: Table */}
+        {isMobile ? (
+          <div>
+            {paginatedEpisodes.map((episode) => (
+              <MobileEpisodeCard key={episode.id} episode={episode} />
+            ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("title")}>
+                    <span className="flex items-center">Episode<SortIcon col="title" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("company")}>
+                    <span className="flex items-center">Company<SortIcon col="company" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("founder")}>
+                    <span className="flex items-center">Founder(s)<SortIcon col="founder" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("stage")}>
+                    <span className="flex items-center">Stage<SortIcon col="stage" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("industry")}>
+                    <span className="flex items-center">Industry<SortIcon col="industry" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("created_at")}>
+                    <span className="flex items-center">Date Added<SortIcon col="created_at" /></span>
+                  </TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedEpisodes.map((episode) => {
+                  const episodeFolders = (folderAssignments[episode.id] || [])
+                    .map(fId => folders.find(f => f.id === fId))
+                    .filter(Boolean);
 
-                return (
-                  <TableRow
-                    key={episode.id}
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => onSelectEpisode(episode.id)}
-                  >
-                    <TableCell className="font-medium max-w-md">
-                      <div className="space-y-1">
-                        <div className="line-clamp-2">{episode.title}</div>
-                        {episodeFolders.length > 0 && (
-                          <div className="flex gap-1 flex-wrap">
-                            {episodeFolders.map(f => (
-                              <span key={f!.id} className="text-[10px] px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: f!.color }}>
-                                {f!.name}
-                              </span>
+                  return (
+                    <TableRow
+                      key={episode.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => onSelectEpisode(episode.id)}
+                    >
+                      <TableCell className="font-medium max-w-md">
+                        <div className="space-y-1">
+                          <div className="line-clamp-2">{episode.title}</div>
+                          {episodeFolders.length > 0 && (
+                            <div className="flex gap-1 flex-wrap">
+                              {episodeFolders.map(f => (
+                                <span key={f!.id} className="text-[10px] px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: f!.color }}>
+                                  {f!.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>{episode.companies?.name || "-"}</TableCell>
+                      <TableCell>{episode.founder_names || "-"}</TableCell>
+                      <TableCell>
+                        {episode.companies?.current_stage ? <Badge variant="secondary">{episode.companies.current_stage}</Badge> : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {episode.companies?.industry ? (
+                          <div className="flex flex-wrap gap-1">
+                            {parseIndustries(episode.companies.industry).map(industry => (
+                              <Badge
+                                key={industry}
+                                variant={selectedIndustries.has(industry) ? "default" : "outline"}
+                                className="cursor-pointer hover:bg-primary/80 transition-colors"
+                                onClick={(e) => { e.stopPropagation(); toggleIndustryFilter(industry); }}
+                              >
+                                {industry}
+                              </Badge>
                             ))}
                           </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{episode.companies?.name || "-"}</TableCell>
-                    <TableCell>{episode.founder_names || "-"}</TableCell>
-                    <TableCell>
-                      {episode.companies?.current_stage ? <Badge variant="secondary">{episode.companies.current_stage}</Badge> : "-"}
-                    </TableCell>
-                    <TableCell>
-                      {episode.companies?.industry ? (
-                        <div className="flex flex-wrap gap-1">
-                          {parseIndustries(episode.companies.industry).map(industry => (
-                            <Badge
-                              key={industry}
-                              variant={selectedIndustries.has(industry) ? "default" : "outline"}
-                              className="cursor-pointer hover:bg-primary/80 transition-colors"
-                              onClick={(e) => { e.stopPropagation(); toggleIndustryFilter(industry); }}
-                            >
-                              {industry}
-                            </Badge>
-                          ))}
+                        ) : "-"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        {episode.created_at ? new Date(episode.created_at).toLocaleDateString() : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <BookmarkButton episodeId={episode.id} />
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(episode.url, "_blank"); }}>
+                                {getPlatformIcon(episode.url)}
+                                <span className="ml-2">{getPlatformLabel(episode.url)}</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSelectEpisode(episode.id); }}>
+                                <Eye className="w-4 h-4" /><span className="ml-2">View Details</span>
+                              </DropdownMenuItem>
+                              {folders.length > 0 && (
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()}>
+                                    <Folder className="w-4 h-4" /><span className="ml-2">Move to Folder</span>
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent>
+                                    {folders.map(folder => {
+                                      const isAssigned = (folderAssignments[episode.id] || []).includes(folder.id);
+                                      return (
+                                        <DropdownMenuItem
+                                          key={folder.id}
+                                          onClick={(e) => { e.stopPropagation(); handleAssignFolder(episode.id, folder.id); }}
+                                        >
+                                          <span className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: folder.color }} />
+                                          {folder.name}
+                                          {isAssigned && <span className="ml-auto text-primary">✓</span>}
+                                        </DropdownMenuItem>
+                                      );
+                                    })}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={(e) => handleExport(episode.id, e)}>
+                                <Download className="w-4 h-4" /><span className="ml-2">Export Episode</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => handleCopyLink(episode.url, e)}>
+                                <Copy className="w-4 h-4" /><span className="ml-2">Copy Link</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={(e) => handleDelete(episode.id, e)} className="text-destructive focus:text-destructive">
+                                <Trash2 className="w-4 h-4" /><span className="ml-2">Delete Analysis</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                      ) : "-"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {episode.created_at ? new Date(episode.created_at).toLocaleDateString() : "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <BookmarkButton episodeId={episode.id} />
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(episode.url, "_blank"); }}>
-                              {getPlatformIcon(episode.url)}
-                              <span className="ml-2">{getPlatformLabel(episode.url)}</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSelectEpisode(episode.id); }}>
-                              <Eye className="w-4 h-4" /><span className="ml-2">View Details</span>
-                            </DropdownMenuItem>
-                            {folders.length > 0 && (
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()}>
-                                  <Folder className="w-4 h-4" /><span className="ml-2">Move to Folder</span>
-                                </DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent>
-                                  {folders.map(folder => {
-                                    const isAssigned = (folderAssignments[episode.id] || []).includes(folder.id);
-                                    return (
-                                      <DropdownMenuItem
-                                        key={folder.id}
-                                        onClick={(e) => { e.stopPropagation(); handleAssignFolder(episode.id, folder.id); }}
-                                      >
-                                        <span className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: folder.color }} />
-                                        {folder.name}
-                                        {isAssigned && <span className="ml-auto text-primary">✓</span>}
-                                      </DropdownMenuItem>
-                                    );
-                                  })}
-                                </DropdownMenuSubContent>
-                              </DropdownMenuSub>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={(e) => handleExport(episode.id, e)}>
-                              <Download className="w-4 h-4" /><span className="ml-2">Export Episode</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => handleCopyLink(episode.url, e)}>
-                              <Copy className="w-4 h-4" /><span className="ml-2">Copy Link</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={(e) => handleDelete(episode.id, e)} className="text-destructive focus:text-destructive">
-                              <Trash2 className="w-4 h-4" /><span className="ml-2">Delete Analysis</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
         {/* Pagination */}
         {sortedEpisodes.length > PAGE_SIZE && (
-          <div className="px-6 py-4 border-t flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Showing {startIdx}–{endIdx} of {sortedEpisodes.length} episodes
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t flex items-center justify-between">
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              {startIdx}–{endIdx} of {sortedEpisodes.length}
             </p>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
+              {!isMobile && Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
                 .reduce<(number | "...")[]>((acc, p, i, arr) => {
                   if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
@@ -539,20 +653,25 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
                 }, [])
                 .map((p, i) =>
                   p === "..." ? (
-                    <span key={`ellipsis-${i}`} className="px-2 text-muted-foreground">…</span>
+                    <span key={`ellipsis-${i}`} className="px-2 text-muted-foreground text-xs">…</span>
                   ) : (
                     <Button
                       key={p}
                       variant={currentPage === p ? "default" : "outline"}
                       size="sm"
-                      className="w-8 h-8 p-0"
+                      className="w-8 h-8 p-0 text-xs"
                       onClick={() => setCurrentPage(p as number)}
                     >
                       {p}
                     </Button>
                   )
                 )}
-              <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+              {isMobile && (
+                <span className="text-xs text-muted-foreground px-2">
+                  {currentPage}/{totalPages}
+                </span>
+              )}
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
@@ -562,7 +681,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
 
       {/* Manage Folders Dialog */}
       <Dialog open={manageFoldersOpen} onOpenChange={setManageFoldersOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm mx-4">
           <DialogHeader>
             <DialogTitle>Manage Folders</DialogTitle>
             <DialogDescription>Create folders to organize your episodes.</DialogDescription>
