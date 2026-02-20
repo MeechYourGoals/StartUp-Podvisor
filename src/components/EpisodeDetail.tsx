@@ -3,8 +3,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ExternalLink, TrendingUp, Target, Lightbulb } from "lucide-react";
+import { ArrowLeft, ExternalLink, TrendingUp, Target, Lightbulb, RefreshCw, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Lesson {
   id: string;
@@ -58,65 +70,142 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
   const [callouts, setCallouts] = useState<Callout[]>([]);
   const [personalizedInsights, setPersonalizedInsights] = useState<PersonalizedInsight[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const { toast } = useToast();
+
+  const fetchEpisodeDetails = async () => {
+    try {
+      const { data: episodeData, error: episodeError } = await supabase
+        .from('episodes')
+        .select(`
+          id, title, release_date, url, founder_names,
+          companies (name, founding_year, current_stage, funding_raised, valuation, employee_count, industry, status)
+        `)
+        .eq('id', episodeId)
+        .single();
+
+      if (episodeError) throw episodeError;
+      setEpisode(episodeData);
+
+      const { data: lessonsData, error: lessonsError } = await supabase
+        .from('lessons')
+        .select('*')
+        .eq('episode_id', episodeId)
+        .order('impact_score', { ascending: false });
+
+      if (lessonsError) throw lessonsError;
+      setLessons(lessonsData || []);
+
+      const { data: calloutsData, error: calloutsError } = await supabase
+        .from('chavel_callouts')
+        .select('*')
+        .eq('episode_id', episodeId)
+        .order('relevance_score', { ascending: false });
+
+      if (calloutsError) throw calloutsError;
+      setCallouts(calloutsData || []);
+
+      const { data: insightsData, error: insightsError } = await supabase
+        .from('personalized_insights')
+        .select('*')
+        .in('lesson_id', (lessonsData || []).map(l => l.id));
+
+      if (!insightsError && insightsData) {
+        setPersonalizedInsights(insightsData.map(insight => ({
+          id: insight.id,
+          lesson_id: insight.lesson_id,
+          personalized_text: insight.personalized_text,
+          relevance_score: insight.relevance_score,
+          action_items: Array.isArray(insight.action_items) 
+            ? (insight.action_items as string[])
+            : []
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching episode details:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchEpisodeDetails = async () => {
-      try {
-        const { data: episodeData, error: episodeError } = await supabase
-          .from('episodes')
-          .select(`
-            id, title, release_date, url, founder_names,
-            companies (name, founding_year, current_stage, funding_raised, valuation, employee_count, industry, status)
-          `)
-          .eq('id', episodeId)
-          .single();
-
-        if (episodeError) throw episodeError;
-        setEpisode(episodeData);
-
-        const { data: lessonsData, error: lessonsError } = await supabase
-          .from('lessons')
-          .select('*')
-          .eq('episode_id', episodeId)
-          .order('impact_score', { ascending: false });
-
-        if (lessonsError) throw lessonsError;
-        setLessons(lessonsData || []);
-
-        const { data: calloutsData, error: calloutsError } = await supabase
-          .from('chavel_callouts')
-          .select('*')
-          .eq('episode_id', episodeId)
-          .order('relevance_score', { ascending: false });
-
-        if (calloutsError) throw calloutsError;
-        setCallouts(calloutsData || []);
-
-        const { data: insightsData, error: insightsError } = await supabase
-          .from('personalized_insights')
-          .select('*')
-          .in('lesson_id', (lessonsData || []).map(l => l.id));
-
-        if (!insightsError && insightsData) {
-          setPersonalizedInsights(insightsData.map(insight => ({
-            id: insight.id,
-            lesson_id: insight.lesson_id,
-            personalized_text: insight.personalized_text,
-            relevance_score: insight.relevance_score,
-            action_items: Array.isArray(insight.action_items) 
-              ? (insight.action_items as string[])
-              : []
-          })));
-        }
-      } catch (error) {
-        console.error('Error fetching episode details:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchEpisodeDetails();
   }, [episodeId]);
+
+  const handleReanalyze = async () => {
+    if (!episode) return;
+    setReanalyzing(true);
+
+    try {
+      // Get current user and their startup profile
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: profiles } = await supabase
+        .from('user_startup_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .limit(1);
+
+      const profile = profiles?.[0];
+
+      // Delete old personalized insights (linked to old lessons)
+      const lessonIds = lessons.map(l => l.id);
+      if (lessonIds.length > 0) {
+        await supabase.from('personalized_insights').delete().in('lesson_id', lessonIds);
+      }
+
+      // Delete old lessons and callouts
+      await supabase.from('lessons').delete().eq('episode_id', episodeId);
+      await supabase.from('chavel_callouts').delete().eq('episode_id', episodeId);
+
+      // Delete the episode itself so analyze-episode can recreate it
+      await supabase.from('episodes').delete().eq('id', episodeId);
+
+      // Re-run analysis
+      const startupProfile = profile ? {
+        company_name: profile.company_name,
+        company_website: profile.company_website,
+        stage: profile.stage,
+        funding_raised: profile.funding_raised,
+        employee_count: profile.employee_count,
+        industry: profile.industry,
+        description: profile.description,
+        deck_summary: (profile as any).deck_summary || null,
+      } : undefined;
+
+      const { data, error } = await supabase.functions.invoke('analyze-episode', {
+        body: {
+          episodeUrl: episode.url,
+          startupProfile,
+          userId: user.id,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: "Re-analysis complete",
+        description: "The episode has been re-analyzed with your current profile.",
+      });
+
+      // Reload with new episode ID
+      if (data?.episodeId) {
+        // Navigate to new episode - trigger parent refresh
+        onBack();
+      }
+    } catch (error: any) {
+      console.error('Re-analysis error:', error);
+      toast({
+        title: "Re-analysis failed",
+        description: error.message || "Could not re-analyze. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setReanalyzing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -157,14 +246,42 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
                 </p>
               )}
             </div>
-            <Button asChild size="sm" className="sm:size-default w-full sm:w-auto">
-              <a href={episode.url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="w-4 h-4 mr-2" />
-                {episode.url.includes('youtube.com') || episode.url.includes('youtu.be') 
-                  ? 'Watch Episode' 
-                  : 'Listen Now'}
-              </a>
-            </Button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button asChild size="sm" className="sm:size-default flex-1 sm:flex-initial">
+                <a href={episode.url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  {episode.url.includes('youtube.com') || episode.url.includes('youtu.be') 
+                    ? 'Watch Episode' 
+                    : 'Listen Now'}
+                </a>
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="sm:size-default" disabled={reanalyzing}>
+                    {reanalyzing ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    Re-Analyze
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Re-analyze this episode?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will replace the existing analysis with a fresh one based on your current startup profile. This counts as a new analysis toward your monthly limit.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleReanalyze}>
+                      Re-Analyze
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
 
           {episode.companies && (
@@ -194,6 +311,15 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
           )}
         </div>
       </Card>
+
+      {reanalyzing && (
+        <Card className="p-6 sm:p-8">
+          <div className="flex items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Re-analyzing episode with your current profile...</span>
+          </div>
+        </Card>
+      )}
 
       {lessons.length > 0 && (
         <Card className="p-4 sm:p-8">

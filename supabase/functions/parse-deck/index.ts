@@ -26,7 +26,6 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Download the file from storage
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -39,10 +38,8 @@ serve(async (req) => {
       throw new Error(`Failed to download file: ${downloadError?.message}`);
     }
 
-    // Extract text content from the file
     const textContent = await fileData.text();
 
-    // Use Lovable AI to parse the deck content
     const aiResponse = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
@@ -57,55 +54,22 @@ serve(async (req) => {
             {
               role: "system",
               content:
-                "You are an expert at analyzing startup pitch decks. Extract structured information from the provided deck content.",
+                "You are an expert at analyzing startup pitch decks. Your job is to produce a comprehensive narrative summary of the deck content.",
             },
             {
               role: "user",
-              content: `Analyze this pitch deck content and extract the following information. Return ONLY a JSON object with these fields (use null for any field you can't determine):
+              content: `Read this pitch deck content and write a comprehensive 2-3 paragraph summary covering:
+- What the company does (product/service, value proposition)
+- Their market, target audience, and competitive positioning
+- Stage, traction, metrics, and team highlights
+- Any key challenges, growth plans, or strategic priorities mentioned
 
-{
-  "company_name": "string",
-  "description": "string (2-3 sentences about what the company does)",
-  "stage": "one of: pre_seed, seed, series_a, series_b_plus, growth, public, bootstrapped",
-  "industry": "string",
-  "funding_raised": "string (e.g. '$2M')",
-  "employee_count": number or null,
-  "company_website": "string or null",
-  "role": "string or null"
-}
+Write in third person, be specific with any numbers or data points found. If something isn't mentioned in the deck, don't make it up.
 
 Deck content:
 ${textContent.slice(0, 15000)}`,
             },
           ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "extract_startup_info",
-                description: "Extract structured startup information from a pitch deck",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    company_name: { type: "string" },
-                    description: { type: "string" },
-                    stage: {
-                      type: "string",
-                      enum: ["pre_seed", "seed", "series_a", "series_b_plus", "growth", "public", "bootstrapped"],
-                    },
-                    industry: { type: "string" },
-                    funding_raised: { type: "string" },
-                    employee_count: { type: "number" },
-                    company_website: { type: "string" },
-                    role: { type: "string" },
-                  },
-                  required: ["company_name", "description"],
-                  additionalProperties: false,
-                },
-              },
-            },
-          ],
-          tool_choice: { type: "function", function: { name: "extract_startup_info" } },
         }),
       }
     );
@@ -129,19 +93,13 @@ ${textContent.slice(0, 15000)}`,
     }
 
     const aiResult = await aiResponse.json();
-    const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
+    const summary = aiResult.choices?.[0]?.message?.content || "";
 
-    let extracted;
-    if (toolCall?.function?.arguments) {
-      extracted = JSON.parse(toolCall.function.arguments);
-    } else {
-      // Fallback: try to parse from content
-      const content = aiResult.choices?.[0]?.message?.content || "{}";
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      extracted = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    if (!summary) {
+      throw new Error("AI returned empty summary");
     }
 
-    return new Response(JSON.stringify({ data: extracted }), {
+    return new Response(JSON.stringify({ summary }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

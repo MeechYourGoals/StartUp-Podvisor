@@ -23,6 +23,7 @@ interface StartupProfile {
   industry: string | null;
   description: string;
   role: string | null;
+  deck_summary: string | null;
 }
 
 interface Folder {
@@ -105,6 +106,7 @@ export const ProfileSettings = ({
     industry: string;
     description: string;
     role: string;
+    deck_summary: string;
   }) => {
     if (!formData.company_name || !formData.stage || !formData.description) {
       toast({
@@ -143,6 +145,7 @@ export const ProfileSettings = ({
             industry: formData.industry || null,
             description: formData.description,
             role: formData.role || null,
+            deck_summary: formData.deck_summary || null,
           })
           .eq("id", editingProfile.id);
 
@@ -161,6 +164,7 @@ export const ProfileSettings = ({
             industry: formData.industry || null,
             description: formData.description,
             role: formData.role || null,
+            deck_summary: formData.deck_summary || null,
             user_id: user?.id
           }]);
 

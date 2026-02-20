@@ -1,0 +1,1 @@
+ALTER TABLE public.user_startup_profiles ADD COLUMN deck_summary text;

@@ -485,6 +485,7 @@ export type Database = {
           company_name: string
           company_website: string | null
           created_at: string | null
+          deck_summary: string | null
           deck_url: string | null
           description: string
           employee_count: number | null
@@ -501,6 +502,7 @@ export type Database = {
           company_name: string
           company_website?: string | null
           created_at?: string | null
+          deck_summary?: string | null
           deck_url?: string | null
           description: string
           employee_count?: number | null
@@ -517,6 +519,7 @@ export type Database = {
           company_name?: string
           company_website?: string | null
           created_at?: string | null
+          deck_summary?: string | null
           deck_url?: string | null
           description?: string
           employee_count?: number | null

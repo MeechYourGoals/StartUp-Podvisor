@@ -406,6 +406,7 @@ Startup Context:
 - Team Size: ${profileToUse.employee_count || 'Not specified'}
 - Industry: ${profileToUse.industry || 'Not specified'}
 - Description: ${profileToUse.description}
+${profileToUse.deck_summary ? `- Deck Summary (additional context from pitch deck): ${profileToUse.deck_summary}` : ''}
 
 Universal Lesson from Episode:
 "${lesson.lesson_text}"
