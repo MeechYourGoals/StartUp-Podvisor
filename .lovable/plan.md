@@ -1,105 +1,66 @@
 
 
-## Fix Build Errors + Add Major Features
+## Deck Upload Rework + AI Deck Summary + Re-Analyze Button
 
-This plan covers 5 areas: fixing the current build errors, adding deck upload with AI parsing, episode folder organization, column sorting, and pagination.
-
----
-
-### 1. Fix Build Errors in subscriptionService.ts
-
-The `check_tier_limits` and `increment_analysis_count` RPC functions are referenced in code but don't exist in the database (only `has_role` exists). The fix is to rewrite `getSubscriptionInfo()` and `incrementAnalysisCount()` to use direct table queries instead of non-existent RPC functions.
-
-- **getSubscriptionInfo()**: Query `user_subscriptions` for tier, `user_startup_profiles` count for profiles used, `bookmarked_episodes` count for bookmarks used, and `user_monthly_usage` for analyses used -- all via standard Supabase client queries instead of `rpc('check_tier_limits')`
-- **incrementAnalysisCount()**: Upsert into `user_monthly_usage` table directly instead of `rpc('increment_analysis_count')`
-- **getRevenueCatOfferings()**: Fix the `offerings` property access to match the actual SDK types
+Three changes based on your feedback:
 
 ---
 
-### 2. Deck Upload on Startup Profile (AI-Powered)
+### 1. Stop Pre-Filling Form Fields from Deck Upload
 
-Allow users to drag-and-drop a pitch deck (PDF/PPTX) on the profile edit dialog. The AI parses it and pre-fills profile fields.
+Currently when a deck is uploaded, the AI extracts fields and pre-fills Company Name, Stage, Industry, etc. This will be removed. The deck upload will no longer auto-fill any form fields -- users fill those in manually.
 
-**Database Changes:**
-- Add `deck_url` (text, nullable) column to `user_startup_profiles` to store the uploaded deck reference
-
-**Storage:**
-- Create a `startup-decks` storage bucket (private, authenticated access)
-- RLS policies: users can only upload/read their own decks
-
-**New Edge Function: `parse-deck`**
-- Accepts a file URL from storage
-- Downloads the file, extracts text content
-- Sends to Gemini Flash via Lovable AI gateway with a prompt to extract: company name, description, stage, industry, funding, team size
-- Returns structured JSON with extracted fields
-
-**UI Changes (StartupProfileDialog.tsx):**
-- Add a drag-and-drop zone below the dialog header
-- On drop: upload to storage bucket, call `parse-deck` edge function
-- Auto-fill form fields with AI-extracted data (user can review/edit before saving)
-- Show upload progress and "AI is analyzing your deck..." loading state
+The toast message "Fields have been pre-filled from your deck" will be replaced with something like "Deck uploaded and summarized."
 
 ---
 
-### 3. Episode Folder Organization
+### 2. Add "Deck Summary" Field Below Description
 
-Allow users to organize analyzed episodes into custom folders (Marketing, Go-to-Market, etc.) directly from the episodes table.
+After the AI parses the deck, instead of pre-filling fields, it will generate a plain-language summary of what it understood from the deck. This summary will appear in a new read-only textarea labeled "Deck Summary (AI-generated)" below the Description field.
 
-**Database Changes:**
-- Create `episode_folders` table: id, user_id, name, color, created_at
-- Create `episode_folder_assignments` table: id, user_id, episode_id, folder_id, created_at
-- RLS policies: users can only CRUD their own folders and assignments
+- The summary will be stored in a new `deck_summary` column on `user_startup_profiles`
+- Users can see what context the AI extracted and edit/refine it if needed (making it editable, not read-only)
+- This summary, along with the deck content, will be passed to the analysis engine as additional context when generating personalized insights
 
-**UI Changes (EpisodesTable.tsx):**
-- Add a folder filter bar above the table (similar to existing industry filters)
-- Add "Move to Folder" option in the episode dropdown menu
-- Show folder badge on each episode row
-- Add "Manage Folders" button to create/edit/delete folders
+**Database change:** Add `deck_summary` (text, nullable) column to `user_startup_profiles`.
 
----
+**Edge function change (parse-deck):** Instead of extracting structured fields, the AI prompt will be changed to produce a comprehensive narrative summary of the deck (2-3 paragraphs covering what the company does, its stage, market, traction, team, etc.).
 
-### 4. Column Sorting
+**UI change (StartupProfileDialog):** Remove the `onFieldsExtracted` callback that pre-fills form fields. Instead, when the deck is analyzed, populate only the new "Deck Summary" textarea. The DeckUploadZone component will return a summary string instead of structured fields.
 
-Make each column header in the episodes table clickable to sort alphabetically (ascending/descending).
-
-**UI Changes (EpisodesTable.tsx):**
-- Add sort state: `sortColumn` and `sortDirection`
-- Make Episode, Company, Founder, Stage, Industry, and Date Added headers clickable with sort indicator arrows
-- Sort the filtered episodes array client-side based on selected column
-- Add a "Date Added" column showing when the episode was analyzed (`created_at`)
+**Analysis engine change (analyze-episode):** The personalization prompt will include the `deck_summary` alongside existing profile fields for richer context.
 
 ---
 
-### 5. Pagination (15-20 episodes per page)
+### 3. Add "Re-Analyze" Button on Episode Detail Page
 
-Show 15 episodes per page with pagination controls at the bottom.
+Next to the existing "Watch Episode" button, add a "Re-Analyze" button. When clicked:
 
-**UI Changes (EpisodesTable.tsx):**
-- Add pagination state: `currentPage` (default 1), `pageSize` (15)
-- Slice the sorted/filtered episodes array for the current page
-- Add pagination controls at the bottom using the existing Pagination UI components
-- Show "Showing 1-15 of 51 episodes" text
-- Page number buttons with Previous/Next navigation
+- It re-runs the analysis for that episode URL using the user's current startup profile (which may have changed since the original analysis)
+- The old lessons, callouts, and personalized insights for that episode are deleted and replaced with fresh ones
+- Shows a confirmation dialog first ("This will replace the existing analysis with a fresh one based on your current profile. Continue?")
+- Shows a loading state while re-analyzing
+
+**UI change (EpisodeDetail.tsx):** Add a "Re-Analyze" button with a RefreshCw icon next to "Watch Episode." On click, show a confirmation dialog, then call the analyze-episode edge function with the episode URL and current profile. On success, delete old data and refresh.
 
 ---
 
 ### Technical Details
 
-**Files to Create:**
-- `supabase/functions/parse-deck/index.ts` -- Edge function for AI deck parsing
+**Database Migration:**
+- Add `deck_summary` text column to `user_startup_profiles`
 
 **Files to Modify:**
-- `src/services/subscriptionService.ts` -- Fix build errors (rewrite RPC calls to direct queries)
-- `src/components/StartupProfileDialog.tsx` -- Add deck drag-and-drop zone + AI parsing
-- `src/components/EpisodesTable.tsx` -- Add sorting, pagination, date added column, folder organization
-- `supabase/config.toml` -- Add parse-deck function config
+- `supabase/functions/parse-deck/index.ts` -- Change AI prompt from structured extraction to narrative summary generation
+- `src/components/DeckUploadZone.tsx` -- Return a summary string instead of structured fields
+- `src/components/StartupProfileDialog.tsx` -- Remove field pre-filling, add Deck Summary textarea below Description
+- `src/components/EpisodeDetail.tsx` -- Add Re-Analyze button with confirmation dialog and loading state
+- `supabase/functions/analyze-episode/index.ts` -- Include `deck_summary` in personalization prompt; support re-analysis (delete old data for episode before inserting new)
 
-**Database Migrations:**
-- Add `deck_url` column to `user_startup_profiles`
-- Create `startup-decks` storage bucket
-- Create `episode_folders` and `episode_folder_assignments` tables with RLS
-
-**Edge Function Dependencies:**
-- Uses `LOVABLE_API_KEY` (already configured) for Gemini Flash via Lovable AI gateway
-- No new secrets needed
+**Flow for Re-Analyze:**
+1. User clicks "Re-Analyze" on episode detail
+2. Confirmation dialog appears
+3. On confirm: delete existing lessons, callouts, personalized_insights for that episode
+4. Call analyze-episode with the episode URL + user's current profile (including deck_summary)
+5. Refresh episode detail view with new data
 
