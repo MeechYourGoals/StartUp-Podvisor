@@ -109,6 +109,7 @@ All colors MUST be HSL.
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    touch-action: manipulation;
   }
 }
 
@@ -147,3 +148,5 @@ All colors MUST be HSL.
     overscroll-behavior-y: contain;
   }
 }
+
+/* Improve touch targets on mobile - use min-h-11 (44px) for primary actions */

@@ -188,7 +188,7 @@ export const AnalysisForm = () => {
   const analysisCheck = canAnalyzeVideo();
 
   return (
-    <Card className="p-8 shadow-lg border-primary/10 hover:shadow-xl transition-shadow">
+    <Card className="p-4 sm:p-8 shadow-lg border-primary/10 hover:shadow-xl transition-shadow">
       {!analysisCheck.allowed && (
         <div className="mb-6">
           <UpgradePrompt
@@ -219,9 +219,9 @@ export const AnalysisForm = () => {
         </div>
 
         <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as "series" | "url")} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
-            <TabsTrigger value="series">By Podcast Series</TabsTrigger>
-            <TabsTrigger value="url">Direct URL</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto h-11 sm:h-10">
+            <TabsTrigger value="series" className="text-xs sm:text-sm min-h-[44px] sm:min-h-0">By Podcast Series</TabsTrigger>
+            <TabsTrigger value="url" className="text-xs sm:text-sm min-h-[44px] sm:min-h-0">Direct URL</TabsTrigger>
           </TabsList>
           
           <TabsContent value="series" className="space-y-4 mt-6">
@@ -273,7 +273,7 @@ export const AnalysisForm = () => {
                 value={episodeUrl}
                 onChange={(e) => setEpisodeUrl(e.target.value)}
                 disabled={isAnalyzing}
-                className="text-center text-lg py-6"
+                className="text-center text-base sm:text-lg py-5 sm:py-6 min-h-[48px]"
               />
               <p className="text-xs text-muted-foreground text-center">
                 Podcast series will be auto-detected
@@ -287,7 +287,7 @@ export const AnalysisForm = () => {
             type="submit"
             disabled={isAnalyzing || !analysisCheck.allowed}
             size="lg"
-            className="min-w-[200px]"
+            className="min-w-[200px] min-h-[48px] sm:min-h-0"
           >
             {isAnalyzing ? (
               <>

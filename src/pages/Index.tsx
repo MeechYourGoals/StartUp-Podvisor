@@ -8,7 +8,7 @@ import { ProfileSettings } from "@/components/ProfileSettings";
 import { PublicLanding } from "@/components/PublicLanding";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/contexts/SubscriptionContext";
-import { Loader2, Bookmark, LogOut, Briefcase, Menu } from "lucide-react";
+import { Loader2, Bookmark, LogOut, Briefcase, Menu, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -27,6 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Card } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 
 const Index = () => {
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
@@ -37,7 +38,7 @@ const Index = () => {
   const { subscription } = useSubscription();
   const navigate = useNavigate();
   const isDesktop = useMediaQuery("(min-width: 1024px)");
-  const isMobile = useMediaQuery("(max-width: 639px)");
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   // Show public landing page for non-authenticated users
   if (!loading && !user) {
@@ -63,8 +64,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 safe-area-inset">
-      {/* Mobile nav */}
-      {isMobile ? (
+      {/* Mobile & Tablet nav - compact header for touch devices */}
+      {!isDesktop ? (
         <div className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border safe-top">
           <div className="flex items-center justify-between px-4 py-2">
             <span className="font-bold text-sm text-primary">Founder Lessons</span>
@@ -85,6 +86,10 @@ const Index = () => {
                     <Bookmark className="h-4 w-4 mr-2" />
                     Bookmarks
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setProfileOpen(false); navigate("/account"); }}>
+                    <User className="h-4 w-4 mr-2" />
+                    Account
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => signOut()}>
                     <LogOut className="h-4 w-4 mr-2" />
                     Sign Out
@@ -95,6 +100,7 @@ const Index = () => {
           </div>
         </div>
       ) : (
+        /* Desktop nav */
         <div className="fixed top-4 right-4 z-50 flex gap-2">
           <Button variant="outline" size="sm" onClick={() => signOut()}>
             <LogOut className="h-4 w-4 mr-2" />
@@ -143,7 +149,7 @@ const Index = () => {
       {/* Mobile/Tablet Sheet */}
       {!isDesktop && (
         <Sheet open={profileOpen} onOpenChange={setProfileOpen}>
-          <SheetContent side="right" className="w-full sm:w-[400px] safe-top">
+          <SheetContent side="right" className="w-full max-w-[100vw] sm:w-[400px] safe-top safe-bottom">
             <SheetHeader>
               <SheetTitle>My Bookmarks & Settings</SheetTitle>
               <SheetDescription>
@@ -165,10 +171,10 @@ const Index = () => {
         </Sheet>
       )}
 
-      <div className={isMobile ? "pt-12" : ""}>
+      <div className={!isDesktop ? "pt-12" : ""}>
         <HeroSection />
       </div>
-      <div className="container mx-auto px-4 py-8 sm:py-12 space-y-8 sm:space-y-12 max-w-6xl safe-bottom">
+      <div className="container mx-auto px-4 py-8 sm:py-12 space-y-8 sm:space-y-12 max-w-6xl pb-24 md:pb-8 safe-bottom">
         <AnalysisForm />
         {selectedEpisodeId ? (
           <EpisodeDetail 
@@ -179,6 +185,8 @@ const Index = () => {
           <EpisodesTable onSelectEpisode={setSelectedEpisodeId} />
         )}
       </div>
+
+      <MobileBottomNav />
     </div>
   );
 };

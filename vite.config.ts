@@ -23,9 +23,12 @@ export default defineConfig(({ mode }) => ({
         theme_color: "#16a34a",
         background_color: "#000000",
         display: "standalone",
-        orientation: "portrait-primary",
+        display_override: ["window-controls-overlay", "standalone", "minimal-ui"],
+        orientation: "any",
         scope: "/",
         start_url: "/",
+        categories: ["productivity", "education"],
+        prefer_related_applications: false,
         icons: [
           {
             src: "/pwa-192x192.png",
