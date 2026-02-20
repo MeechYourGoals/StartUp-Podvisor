@@ -14,6 +14,9 @@ const TIER_LIMITS = {
   series_z: { analyses: 25 },
 } as const;
 
+/** Founder/Super Admin emails with unlimited access - no feature limits */
+const FOUNDER_EMAILS = ['ccamechi@gmail.com'];
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -46,40 +49,45 @@ serve(async (req) => {
       authenticatedUserId = user?.id;
     }
 
-    // Check subscription limits if we have a user
+    // Check subscription limits if we have a user (skip for Founder/Super Admin)
     if (authenticatedUserId) {
-      const monthYear = new Date().toISOString().slice(0, 7); // YYYY-MM
+      const { data: { user: authUser } } = await supabase.auth.admin.getUserById(authenticatedUserId);
+      const isFounder = authUser?.email && FOUNDER_EMAILS.includes(authUser.email.toLowerCase());
 
-      // Get user's subscription tier
-      const { data: subscription } = await supabase
-        .from('user_subscriptions')
-        .select('tier')
-        .eq('user_id', authenticatedUserId)
-        .single();
+      if (!isFounder) {
+        const monthYear = new Date().toISOString().slice(0, 7); // YYYY-MM
 
-      const tier = (subscription?.tier || 'free') as keyof typeof TIER_LIMITS;
-      const maxAnalyses = TIER_LIMITS[tier]?.analyses || 4;
+        // Get user's subscription tier
+        const { data: subscription } = await supabase
+          .from('user_subscriptions')
+          .select('tier')
+          .eq('user_id', authenticatedUserId)
+          .single();
 
-      // Get current month usage
-      const { data: usage } = await supabase
-        .from('user_monthly_usage')
-        .select('analyses_count')
-        .eq('user_id', authenticatedUserId)
-        .eq('month_year', monthYear)
-        .single();
+        const tier = (subscription?.tier || 'free') as keyof typeof TIER_LIMITS;
+        const maxAnalyses = TIER_LIMITS[tier]?.analyses || 4;
 
-      const currentCount = usage?.analyses_count || 0;
+        // Get current month usage
+        const { data: usage } = await supabase
+          .from('user_monthly_usage')
+          .select('analyses_count')
+          .eq('user_id', authenticatedUserId)
+          .eq('month_year', monthYear)
+          .single();
 
-      if (currentCount >= maxAnalyses) {
-        return new Response(JSON.stringify({
-          error: `You've reached your limit of ${maxAnalyses} analyses this month. Upgrade your plan for more.`,
-          limitReached: true,
-          currentCount,
-          maxAnalyses,
-        }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        const currentCount = usage?.analyses_count || 0;
+
+        if (currentCount >= maxAnalyses) {
+          return new Response(JSON.stringify({
+            error: `You've reached your limit of ${maxAnalyses} analyses this month. Upgrade your plan for more.`,
+            limitReached: true,
+            currentCount,
+            maxAnalyses,
+          }), {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       }
     }
 
