@@ -27,6 +27,7 @@ interface StartupProfile {
   industry: string | null;
   description: string;
   role: string | null;
+  deck_summary: string | null;
 }
 
 interface StartupProfileDialogProps {
@@ -43,6 +44,7 @@ interface StartupProfileDialogProps {
     industry: string;
     description: string;
     role: string;
+    deck_summary: string;
   }) => Promise<void>;
 }
 
@@ -63,6 +65,7 @@ export const StartupProfileDialog = ({
     industry: "",
     description: "",
     role: "",
+    deck_summary: "",
   });
 
   useEffect(() => {
@@ -77,6 +80,7 @@ export const StartupProfileDialog = ({
         industry: profile.industry || "",
         description: profile.description,
         role: profile.role || "",
+        deck_summary: profile.deck_summary || "",
       });
     } else {
       setFormData({
@@ -89,6 +93,7 @@ export const StartupProfileDialog = ({
         industry: "",
         description: "",
         role: "",
+        deck_summary: "",
       });
     }
   }, [profile, open]);
@@ -125,17 +130,10 @@ export const StartupProfileDialog = ({
         <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-4">
             <DeckUploadZone
-              onFieldsExtracted={(fields) => {
+              onSummaryExtracted={(summary) => {
                 setFormData((prev) => ({
                   ...prev,
-                  ...(fields.company_name && { company_name: fields.company_name }),
-                  ...(fields.description && { description: fields.description }),
-                  ...(fields.stage && { stage: fields.stage as StageType }),
-                  ...(fields.industry && { industry: fields.industry }),
-                  ...(fields.funding_raised && { funding_raised: fields.funding_raised }),
-                  ...(fields.employee_count && { employee_count: fields.employee_count }),
-                  ...(fields.company_website && { company_website: fields.company_website }),
-                  ...(fields.role && { role: fields.role }),
+                  deck_summary: summary,
                 }));
               }}
             />
@@ -236,6 +234,20 @@ export const StartupProfileDialog = ({
                 className="min-h-[100px]"
               />
             </div>
+
+            {formData.deck_summary && (
+              <div className="space-y-2">
+                <Label>Deck Summary (AI-generated)</Label>
+                <p className="text-xs text-muted-foreground">
+                  This context will be used to personalize episode analyses. Edit to fine-tune.
+                </p>
+                <Textarea
+                  value={formData.deck_summary}
+                  onChange={(e) => setFormData({ ...formData, deck_summary: e.target.value })}
+                  className="min-h-[120px] text-sm"
+                />
+              </div>
+            )}
 
             <div className="flex gap-2 pt-2">
               <Button 

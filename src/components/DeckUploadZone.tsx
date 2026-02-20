@@ -5,19 +5,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 
 interface DeckUploadZoneProps {
-  onFieldsExtracted: (fields: {
-    company_name?: string;
-    description?: string;
-    stage?: string;
-    industry?: string;
-    funding_raised?: string;
-    employee_count?: number;
-    company_website?: string;
-    role?: string;
-  }) => void;
+  onSummaryExtracted: (summary: string) => void;
 }
 
-export const DeckUploadZone = ({ onFieldsExtracted }: DeckUploadZoneProps) => {
+export const DeckUploadZone = ({ onSummaryExtracted }: DeckUploadZoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -79,11 +70,11 @@ export const DeckUploadZone = ({ onFieldsExtracted }: DeckUploadZoneProps) => {
 
       if (error) throw error;
 
-      if (data?.data) {
-        onFieldsExtracted(data.data);
+      if (data?.summary) {
+        onSummaryExtracted(data.summary);
         toast({
-          title: "Deck analyzed!",
-          description: "Fields have been pre-filled from your deck. Review and edit as needed.",
+          title: "Deck uploaded and summarized",
+          description: "Review the AI-generated summary below and edit if needed.",
         });
       } else if (data?.error) {
         throw new Error(data.error);
@@ -94,7 +85,7 @@ export const DeckUploadZone = ({ onFieldsExtracted }: DeckUploadZoneProps) => {
       console.error("Deck upload/parse error:", error);
       toast({
         title: "Analysis failed",
-        description: error.message || "Could not analyze the deck. Please fill in the fields manually.",
+        description: error.message || "Could not analyze the deck. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -105,7 +96,7 @@ export const DeckUploadZone = ({ onFieldsExtracted }: DeckUploadZoneProps) => {
         setFileName(null);
       }, 2000);
     }
-  }, [onFieldsExtracted, toast]);
+  }, [onSummaryExtracted, toast]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
