@@ -136,7 +136,7 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <Button variant="ghost" onClick={onBack} className="mb-2 sm:mb-4">
+      <Button variant="ghost" onClick={onBack} className="mb-2 sm:mb-4 min-h-[44px] sm:min-h-0 -ml-2">
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to All Episodes
       </Button>

@@ -313,8 +313,11 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
 
     return (
       <div
-        className="p-4 border-b border-border last:border-b-0 active:bg-muted/50 transition-colors"
+        className="p-4 min-h-[72px] border-b border-border last:border-b-0 active:bg-muted/50 transition-colors cursor-pointer touch-manipulation"
         onClick={() => onSelectEpisode(episode.id)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === "Enter" && onSelectEpisode(episode.id)}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">

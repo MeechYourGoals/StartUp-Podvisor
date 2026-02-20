@@ -8,6 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UsageDisplay, PricingPlans } from "@/components/subscription";
 import { ArrowLeft, LogOut, Mail, Calendar, Loader2, RotateCcw } from "lucide-react";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -16,6 +18,7 @@ const Account = () => {
   const { subscription, loading: subLoading, isNative, restorePurchases, refreshSubscription } = useSubscription();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -57,20 +60,36 @@ const Account = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 safe-area-inset">
+      {/* Mobile/Tablet header */}
+      {isMobile ? (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border safe-top">
+          <div className="flex items-center justify-between px-4 py-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="-ml-2">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <span className="font-semibold text-sm">Account</span>
+            <ThemeToggle />
+          </div>
+        </div>
+      ) : (
+        <div className="fixed top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
+      )}
 
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <Button
-          variant="ghost"
-          onClick={() => navigate("/")}
-          className="mb-6"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Dashboard
-        </Button>
+      <div className="container mx-auto px-4 pt-14 pb-24 md:pt-8 md:pb-8 max-w-4xl safe-bottom">
+        {!isMobile && (
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/")}
+            className="mb-6"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        )}
 
         <div className="space-y-8">
           {/* Account Info */}
@@ -169,6 +188,8 @@ const Account = () => {
           )}
         </div>
       </div>
+
+      <MobileBottomNav />
     </div>
   );
 };
