@@ -183,61 +183,84 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
       const doc = new jsPDF();
       let y = 20;
 
-      doc.setFontSize(18);
-      doc.text("Founder Lessons", 14, y);
-      y += 12;
+      // Title
+      doc.setFontSize(22);
+      doc.setTextColor(33, 33, 33);
+      doc.text("Executive Summary: Founder Lessons", 14, y);
+      y += 10;
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, y);
+      y += 15;
 
       data?.forEach((episode: any, eIdx: number) => {
         if (y > 250) { doc.addPage(); y = 20; }
 
-        doc.setFontSize(13);
+        // Episode Header
+        doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
+        doc.setTextColor(33, 33, 33);
         doc.text(episode.title || "Untitled", 14, y, { maxWidth: 180 });
-        y += 8;
+        y += 7;
 
-        doc.setFontSize(9);
+        // Meta Info
+        doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
+        doc.setTextColor(100);
         const meta = [
           `Company: ${episode.companies?.name || "N/A"}`,
           `Founders: ${episode.founder_names || "N/A"}`,
           `Date: ${episode.release_date || "N/A"}`,
         ].join("  |  ");
         doc.text(meta, 14, y, { maxWidth: 180 });
-        y += 6;
+        y += 8;
 
         if (episode.lessons?.length > 0) {
           const tableData = episode.lessons.map((lesson: any) => {
             const insight = lesson.personalized_insights?.[0];
+            const actionItems = insight?.action_items && Array.isArray(insight.action_items)
+                ? insight.action_items.map((i: string) => `• ${i}`).join('\n')
+                : "";
+
             return [
               lesson.lesson_text || "",
-              lesson.category || "",
               `${lesson.impact_score || "-"}/10`,
               `${lesson.actionability_score || "-"}/10`,
               insight?.personalized_text || "",
+              actionItems
             ];
           });
 
           autoTable(doc, {
             startY: y,
-            head: [["Lesson", "Category", "Impact", "Action.", "Personalized Insight"]],
+            head: [["Lesson", "Imp", "Act", "Insight", "Action Items"]],
             body: tableData,
-            styles: { fontSize: 7, cellPadding: 2 },
-            headStyles: { fillColor: [59, 130, 246] },
+            styles: { fontSize: 8, cellPadding: 3, overflow: 'linebreak' },
+            headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
             columnStyles: {
-              0: { cellWidth: 50 },
-              4: { cellWidth: 50 },
+              0: { cellWidth: 45 },
+              1: { cellWidth: 10 },
+              2: { cellWidth: 10 },
+              3: { cellWidth: 60 },
+              4: { cellWidth: 55 },
             },
             margin: { left: 14, right: 14 },
+            didDrawPage: (data) => {
+                // Footer or something if needed
+            }
           });
 
-          y = (doc as any).lastAutoTable.finalY + 10;
+          y = (doc as any).lastAutoTable.finalY + 15;
+        } else {
+            y += 5;
         }
       });
 
-      doc.save(`founder-lessons-${episodeId ? "episode" : "all"}-${new Date().toISOString().split("T")[0]}.pdf`);
+      doc.save(`executive-summary-${episodeId ? "episode" : "all"}-${new Date().toISOString().split("T")[0]}.pdf`);
       toast({ title: "Export complete", description: "PDF file downloaded" });
       onOpenChange(false);
     } catch (error) {
+      console.error("Export error:", error);
       toast({ title: "Export failed", description: "Please try again", variant: "destructive" });
     } finally {
       setExporting(false);
@@ -248,13 +271,17 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Export {episodeId ? 'Episode' : 'All Episodes'}</DialogTitle>
+          <DialogTitle>Export Executive Summary</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 pt-4">
-          <Button onClick={exportPDF} disabled={exporting} variant="outline" className="w-full justify-start">
+          <Button onClick={exportPDF} disabled={exporting} variant="default" className="w-full justify-start">
             <FileDown className="w-4 h-4 mr-2" />
-            Export as PDF
+            Download Executive Summary (PDF)
           </Button>
+          <div className="relative py-2">
+             <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+             <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or export raw data</span></div>
+          </div>
           <Button onClick={exportCSV} disabled={exporting} variant="outline" className="w-full justify-start">
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Export as CSV

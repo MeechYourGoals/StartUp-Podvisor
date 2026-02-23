@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Loader2, Sparkles, ArrowLeft, Zap } from "lucide-react";
+import { Loader2, Sparkles, ArrowLeft, Zap, FastForward } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/contexts/SubscriptionContext";
@@ -68,7 +68,15 @@ export const AnalysisForm = () => {
 
   const handleEpisodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    validateAndProceed("profile");
+  };
 
+  const handleQuickImport = (e: React.MouseEvent) => {
+    e.preventDefault();
+    validateAndProceed("quick");
+  };
+
+  const validateAndProceed = (mode: "profile" | "quick") => {
     if (!episodeUrl.trim()) {
       toast({
         title: "Missing Information",
@@ -89,7 +97,11 @@ export const AnalysisForm = () => {
       return;
     }
 
-    setStep("profile");
+    if (mode === "quick") {
+      analyzeWithContext(null);
+    } else {
+      setStep("profile");
+    }
   };
 
   const handleProfileSubmit = async (profile: any, saveProfile: boolean) => {
@@ -115,7 +127,7 @@ export const AnalysisForm = () => {
 
   const analyzeWithContext = async (profile: any) => {
     setIsAnalyzing(true);
-    setProgress("Analyzing episode with your startup context...");
+    setProgress(profile ? "Analyzing episode with your startup context..." : "Analyzing episode...");
 
     try {
       setProgress("Fetching episode data...");
@@ -138,7 +150,7 @@ export const AnalysisForm = () => {
         return;
       }
 
-      setProgress("Generating personalized insights...");
+      setProgress("Generating insights...");
 
       // Track the analysis for usage limits
       await trackAnalysis();
@@ -146,7 +158,7 @@ export const AnalysisForm = () => {
 
       toast({
         title: "Analysis complete!",
-        description: "Episode analyzed with personalized insights for your startup",
+        description: "Episode analyzed successfully.",
       });
 
       setEpisodeUrl("");
@@ -285,7 +297,7 @@ export const AnalysisForm = () => {
           </TabsContent>
         </Tabs>
 
-        <div className="flex justify-center">
+        <div className="flex flex-col sm:flex-row justify-center gap-3">
           <Button
             type="submit"
             disabled={isAnalyzing || !analysisCheck.allowed}
@@ -305,10 +317,24 @@ export const AnalysisForm = () => {
             ) : (
               <>
                 <Sparkles className="mr-2 h-4 w-4" />
-                Analyze Episode
+                Analyze (Personalized)
               </>
             )}
           </Button>
+
+          {analysisCheck.allowed && !isAnalyzing && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isAnalyzing}
+              onClick={handleQuickImport}
+              size="lg"
+              className="min-w-[150px] min-h-[48px] sm:min-h-0"
+            >
+              <FastForward className="mr-2 h-4 w-4" />
+              Quick Import
+            </Button>
+          )}
         </div>
       </form>
     </Card>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,13 +8,16 @@ import { Input } from "@/components/ui/input";
 import {
   ExternalLink, TrendingUp, MoreVertical, Eye, Bookmark, Download, Copy,
   Youtube, Headphones, Trash2, X, ArrowUpDown, ArrowUp, ArrowDown,
-  FolderPlus, Folder, ChevronLeft, ChevronRight,
+  FolderPlus, Folder, ChevronLeft, ChevronRight, Filter, Search
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub,
   DropdownMenuSubTrigger, DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -41,6 +45,13 @@ interface Episode {
     valuation: string | null;
     industry: string | null;
   } | null;
+  lessons?: {
+    lesson_tags?: {
+        tags?: {
+            name: string;
+        } | null;
+    }[];
+  }[];
 }
 
 interface EpisodeFolder {
@@ -59,6 +70,7 @@ type SortDirection = "asc" | "desc";
 const PAGE_SIZE = 15;
 
 export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [allEpisodes, setAllEpisodes] = useState<Episode[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -74,12 +86,27 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Filters
+  const [founderFilter, setFounderFilter] = useState<string>("all");
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const [yearFilter, setYearFilter] = useState<string>("all");
+  const [showFilters, setShowFilters] = useState(false);
+
   // Folders
   const [folders, setFolders] = useState<EpisodeFolder[]>([]);
   const [folderAssignments, setFolderAssignments] = useState<Record<string, string[]>>({});
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [manageFoldersOpen, setManageFoldersOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+
+  // Initialize founder filter from URL
+  useEffect(() => {
+    const founder = searchParams.get("founder");
+    if (founder) {
+        setFounderFilter(founder);
+        setShowFilters(true);
+    }
+  }, [searchParams]);
 
   const parseIndustries = (industryString: string | null | undefined): string[] => {
     if (!industryString) return [];
@@ -96,23 +123,58 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
     setCurrentPage(1);
   };
 
+  // Derive unique options
+  const uniqueFounders = useMemo(() => {
+    const s = new Set<string>();
+    allEpisodes.forEach(ep => ep.founder_names?.split(',').forEach(n => s.add(n.trim())));
+    return Array.from(s).sort();
+  }, [allEpisodes]);
+
+  const uniqueCompanies = useMemo(() => {
+    const s = new Set<string>();
+    allEpisodes.forEach(ep => ep.companies?.name && s.add(ep.companies.name));
+    return Array.from(s).sort();
+  }, [allEpisodes]);
+
+  const uniqueYears = useMemo(() => {
+    const s = new Set<string>();
+    allEpisodes.forEach(ep => ep.release_date && s.add(ep.release_date.slice(0, 4)));
+    return Array.from(s).sort().reverse();
+  }, [allEpisodes]);
+
   // Filter → Sort → Paginate
   const filteredEpisodes = useMemo(() => {
     let result = allEpisodes;
+
+    // Industry Filter
     if (selectedIndustries.size > 0) {
       result = result.filter(ep => {
         const industries = parseIndustries(ep.companies?.industry);
         return industries.some(ind => selectedIndustries.has(ind));
       });
     }
+
+    // Folder Filter
     if (selectedFolderId) {
       const episodeIdsInFolder = Object.entries(folderAssignments)
         .filter(([, folderIds]) => folderIds.includes(selectedFolderId))
         .map(([epId]) => epId);
       result = result.filter(ep => episodeIdsInFolder.includes(ep.id));
     }
+
+    // New Filters
+    if (founderFilter && founderFilter !== "all") {
+        result = result.filter(ep => ep.founder_names?.includes(founderFilter));
+    }
+    if (companyFilter && companyFilter !== "all") {
+        result = result.filter(ep => ep.companies?.name === companyFilter);
+    }
+    if (yearFilter && yearFilter !== "all") {
+        result = result.filter(ep => ep.release_date?.startsWith(yearFilter));
+    }
+
     return result;
-  }, [allEpisodes, selectedIndustries, selectedFolderId, folderAssignments]);
+  }, [allEpisodes, selectedIndustries, selectedFolderId, folderAssignments, founderFilter, companyFilter, yearFilter]);
 
   const sortedEpisodes = useMemo(() => {
     const sorted = [...filteredEpisodes];
@@ -160,7 +222,15 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
     try {
       const { data, error } = await supabase
         .from("episodes")
-        .select(`id, title, release_date, url, founder_names, analysis_status, company_id, created_at, companies (name, founding_year, current_stage, valuation, industry)`)
+        .select(`
+            id, title, release_date, url, founder_names, analysis_status, company_id, created_at,
+            companies (name, founding_year, current_stage, valuation, industry),
+            lessons (
+                lesson_tags (
+                    tags (name)
+                )
+            )
+        `)
         .order("created_at", { ascending: false });
       if (error) throw error;
       setAllEpisodes(data || []);
@@ -176,14 +246,14 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
     if (!user) return;
 
     const { data: foldersData } = await supabase
-      .from("episode_folders" as any)
+      .from("episode_folders")
       .select("id, name, color")
       .eq("user_id", user.id);
 
     if (foldersData) setFolders(foldersData as any);
 
     const { data: assignments } = await supabase
-      .from("episode_folder_assignments" as any)
+      .from("episode_folder_assignments")
       .select("episode_id, folder_id")
       .eq("user_id", user.id);
 
@@ -203,7 +273,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
     if (!user) return;
 
     const { error } = await supabase
-      .from("episode_folders" as any)
+      .from("episode_folders")
       .insert({ user_id: user.id, name: newFolderName.trim() } as any);
 
     if (!error) {
@@ -215,7 +285,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
 
   const handleDeleteFolder = async (folderId: string) => {
     const { error } = await supabase
-      .from("episode_folders" as any)
+      .from("episode_folders")
       .delete()
       .eq("id", folderId);
     if (!error) {
@@ -232,14 +302,14 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
     const existing = folderAssignments[episodeId] || [];
     if (existing.includes(folderId)) {
       await supabase
-        .from("episode_folder_assignments" as any)
+        .from("episode_folder_assignments")
         .delete()
         .eq("episode_id", episodeId)
         .eq("folder_id", folderId)
         .eq("user_id", user.id);
     } else {
       await supabase
-        .from("episode_folder_assignments" as any)
+        .from("episode_folder_assignments")
         .insert({ user_id: user.id, episode_id: episodeId, folder_id: folderId } as any);
     }
     fetchFolders();
@@ -272,7 +342,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
     return () => window.removeEventListener("episodeAnalyzed", handleEpisodeAnalyzed);
   }, []);
 
-  useEffect(() => { setCurrentPage(1); }, [selectedFolderId]);
+  useEffect(() => { setCurrentPage(1); }, [selectedFolderId, founderFilter, companyFilter, yearFilter]);
 
   if (loading) {
     return <Card className="p-6 sm:p-8"><div className="text-center text-muted-foreground">Loading episodes...</div></Card>;
@@ -401,10 +471,18 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
     );
   };
 
+  const clearFilters = () => {
+      setFounderFilter("all");
+      setCompanyFilter("all");
+      setYearFilter("all");
+      setSelectedIndustries(new Set());
+      setSearchParams({});
+  };
+
   return (
     <>
       <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
-        <div className="p-4 sm:p-6 border-b bg-muted/30">
+        <div className="p-4 sm:p-6 border-b bg-muted/30 space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <h2 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
@@ -412,12 +490,16 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
                 <span className="truncate">Analyzed Episodes</span>
               </h2>
               <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                {selectedIndustries.size > 0 || selectedFolderId
+                {selectedIndustries.size > 0 || selectedFolderId || founderFilter !== "all"
                   ? `${filteredEpisodes.length} of ${allEpisodes.length} episodes`
                   : `${allEpisodes.length} episode${allEpisodes.length !== 1 ? "s" : ""} in database`}
               </p>
             </div>
             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <Button variant={showFilters ? "secondary" : "outline"} size="sm" className="text-xs sm:text-sm" onClick={() => setShowFilters(!showFilters)}>
+                <Filter className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Filters</span>
+              </Button>
               <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => setManageFoldersOpen(true)}>
                 <FolderPlus className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Folders</span>
@@ -428,6 +510,51 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
               </Button>
             </div>
           </div>
+
+          {/* Expanded Filters */}
+          {showFilters && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 animate-in slide-in-from-top-2">
+              <Select value={founderFilter} onValueChange={(val) => {setFounderFilter(val); setSearchParams(prev => { if(val==="all") prev.delete("founder"); else prev.set("founder", val); return prev; })}}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Founder" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Founders</SelectItem>
+                  {uniqueFounders.map(f => (
+                    <SelectItem key={f} value={f}>{f}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Company" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Companies</SelectItem>
+                  {uniqueCompanies.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={yearFilter} onValueChange={setYearFilter}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  {uniqueYears.map(y => (
+                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button variant="ghost" size="sm" className="h-8" onClick={clearFilters}>
+                Clear All
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Sort controls for mobile */}

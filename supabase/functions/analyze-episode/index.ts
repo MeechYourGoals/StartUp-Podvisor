@@ -121,7 +121,8 @@ CRITICAL REQUIREMENTS:
 - Cite specific examples and stories from the founder
 - If data is unavailable, mark as "Unknown" or "Not disclosed"
 - DO NOT provide mock or placeholder data
-- Extract the podcast series name from the episode context if not provided`;
+- Extract the podcast series name from the episode context if not provided
+- Assign relevant TAGS to each lesson (e.g., #funding, #hiring, #product, #marketing)`;
 
     const userPrompt = `Analyze this podcast episode:
 URL: ${episodeUrl}
@@ -136,7 +137,8 @@ INSTRUCTIONS:
 5. Extract EXACTLY 5 callouts specifically relevant to chravelapp.com (a travel/events startup)
 6. Rank lessons by actionability (1-10) and impact (1-10)
 7. Include founder attribution for each lesson
-8. If you cannot access the content, return an error - do NOT provide mock data`;
+8. Assign 1-3 relevant tags to each lesson (e.g. #growth, #culture, #fundraising)
+9. If you cannot access the content, return an error - do NOT provide mock data`;
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -169,7 +171,7 @@ INSTRUCTIONS:
                       name: { type: "string" },
                       foundingYear: { type: "number", nullable: true },
                       currentStage: { type: "string", description: "e.g., Seed, Series A, Public, Acquired" },
-                      fundingRaised: { type: "string", description: "Total funding raised, e.g., $50M" },
+                      fundingRaised: { type: "string", description: "Total funding raised, e.g., 0M" },
                       valuation: { type: "string", description: "Current or last known valuation" },
                       employeeCount: { type: "number", nullable: true },
                       industry: { type: "string" },
@@ -188,10 +190,15 @@ INSTRUCTIONS:
                         text: { type: "string", description: "3-4 sentence detailed lesson with specific context" },
                         impactScore: { type: "integer", minimum: 1, maximum: 10 },
                         actionabilityScore: { type: "integer", minimum: 1, maximum: 10 },
-                        category: { type: "string", description: "e.g., Product, Growth, Fundraising, Team" },
+                        category: { type: "string", description: "Primary category e.g., Product, Growth" },
+                        tags: {
+                          type: "array",
+                          items: { type: "string" },
+                          description: "List of tags e.g. #funding, #hiring"
+                        },
                         founderAttribution: { type: "string", description: "Founder's name" }
                       },
-                      required: ["text", "impactScore", "actionabilityScore", "category", "founderAttribution"]
+                      required: ["text", "impactScore", "actionabilityScore", "category", "tags", "founderAttribution"]
                     }
                   },
                   chavelCallouts: {
@@ -332,26 +339,94 @@ INSTRUCTIONS:
       console.log('Incremented analysis count for user:', authenticatedUserId);
     }
 
-    // Step 6: Insert lessons with normalization
+    // Step 6: Insert lessons and tags
     if (analysis.lessons?.length > 0) {
       const clampScore = (val: any) => Math.max(1, Math.min(10, Math.round(Number(val) || 5)));
       
-      const lessonsToInsert = analysis.lessons.map((lesson: any) => ({
-        episode_id: episode.id,
+      const lessonsWithTags = analysis.lessons.map((lesson: any) => ({
         lesson_text: lesson.text,
         impact_score: clampScore(lesson.impactScore),
         actionability_score: clampScore(lesson.actionabilityScore),
         category: lesson.category,
         founder_attribution: lesson.founderAttribution,
+        tags: lesson.tags || []
       }));
 
-      const { error: lessonsError } = await supabase
+      // Insert lessons
+      const { data: insertedLessons, error: lessonsError } = await supabase
         .from('lessons')
-        .insert(lessonsToInsert);
+        .insert(lessonsWithTags.map(({ tags, ...rest }) => ({
+          ...rest,
+          episode_id: episode.id
+        })))
+        .select('id');
 
       if (lessonsError) {
         console.error('Error inserting lessons:', lessonsError);
         throw new Error(`Failed to save lessons: ${lessonsError.message} (${lessonsError.code})`);
+      }
+
+      // Process tags for each lesson
+      if (insertedLessons && insertedLessons.length > 0) {
+        for (let i = 0; i < insertedLessons.length; i++) {
+          const lessonId = insertedLessons[i].id;
+          const tags = lessonsWithTags[i].tags;
+
+          if (tags && tags.length > 0) {
+            for (const tagName of tags) {
+              // Clean tag name (remove # if present, lowercase)
+              const cleanTag = tagName.replace(/^#/, '').toLowerCase();
+
+              if (!cleanTag) continue;
+
+              // 1. Get or create tag
+              let tagId;
+              const { data: existingTag } = await supabase
+                .from('tags')
+                .select('id')
+                .eq('name', cleanTag)
+                .maybeSingle();
+
+              if (existingTag) {
+                tagId = existingTag.id;
+              } else {
+                const { data: newTag, error: tagError } = await supabase
+                  .from('tags')
+                  .insert({ name: cleanTag })
+                  .select('id')
+                  .single();
+
+                // Handle concurrent inserts or errors
+                if (tagError && tagError.code !== '23505') { // 23505 is unique violation
+                   console.error('Error creating tag:', cleanTag, tagError);
+                }
+
+                // If failed (e.g. concurrent insert), try fetching again
+                if (!newTag) {
+                   const { data: retryTag } = await supabase
+                     .from('tags')
+                     .select('id')
+                     .eq('name', cleanTag)
+                     .maybeSingle();
+                   tagId = retryTag?.id;
+                } else {
+                   tagId = newTag.id;
+                }
+              }
+
+              // 2. Link tag to lesson
+              if (tagId) {
+                await supabase
+                  .from('lesson_tags')
+                  .insert({ lesson_id: lessonId, tag_id: tagId })
+                  .catch(err => {
+                    // Ignore unique violation if link already exists
+                    if (err.code !== '23505') console.error('Error linking tag:', err);
+                  });
+              }
+            }
+          }
+        }
       }
     }
 
@@ -380,11 +455,11 @@ INSTRUCTIONS:
       company_name: "ChravelApp",
       company_website: "https://www.chravelapp.com",
       stage: "Pre-seed",
-      funding_raised: "$2M",
-      valuation: "$10M",
+      funding_raised: "M",
+      valuation: "0M",
       employee_count: 5,
       industry: "Travel Tech",
-      description: "ChravelApp is the AI-powered hub for group adventures. We solve the chaos of group travel coordination where people juggle 15+ apps and spend 16 hours planning trips. Our platform combines shared calendars, file management, payment splitting, and an AI concierge with full trip context into one unified solution. Like Microsoft's Office 365 streamlines work, ChravelApp is 'Travel 365' for out-of-office coordination. Target markets include consumer group travel ($400B+), corporate/professional travel ($4.7B), and large-scale events ($750B). Key challenges: achieving product-market fit, driving user adoption, and building network effects in a crowded travel tech space."
+      description: "ChravelApp is the AI-powered hub for group adventures. We solve the chaos of group travel coordination where people juggle 15+ apps and spend 16 hours planning trips. Our platform combines shared calendars, file management, payment splitting, and an AI concierge with full trip context into one unified solution. Like Microsoft's Office 365 streamlines work, ChravelApp is 'Travel 365' for out-of-office coordination. Target markets include consumer group travel (00B+), corporate/professional travel (.7B), and large-scale events (50B). Key challenges: achieving product-market fit, driving user adoption, and building network effects in a crowded travel tech space."
     };
 
     // Use provided profile, or default to Chravel
