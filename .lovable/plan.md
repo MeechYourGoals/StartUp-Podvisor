@@ -1,66 +1,58 @@
 
 
-## Deck Upload Rework + AI Deck Summary + Re-Analyze Button
+## Fix Analysis Error + Improve Startup Context UX
 
-Three changes based on your feedback:
+### Part 1: Fix the "Analysis Failed" Error
 
----
+**Root Cause:** The `analyze-episode` edge function tries to insert an `analyzed_by` column into the `episodes` table (line 318), but that column does not exist in the database schema. The `episodes` table only has: `id`, `podcast_id`, `title`, `release_date`, `url`, `platform`, `company_id`, `founder_names`, `analysis_status`, `created_at`, `updated_at`.
 
-### 1. Stop Pre-Filling Form Fields from Deck Upload
+**Fix:** Either add the `analyzed_by` column to the `episodes` table via a migration, or remove the `analyzed_by` field from the edge function insert. Adding the column is the better approach since it tracks who analyzed each episode.
 
-Currently when a deck is uploaded, the AI extracts fields and pre-fills Company Name, Stage, Industry, etc. This will be removed. The deck upload will no longer auto-fill any form fields -- users fill those in manually.
-
-The toast message "Fields have been pre-filled from your deck" will be replaced with something like "Deck uploaded and summarized."
-
----
-
-### 2. Add "Deck Summary" Field Below Description
-
-After the AI parses the deck, instead of pre-filling fields, it will generate a plain-language summary of what it understood from the deck. This summary will appear in a new read-only textarea labeled "Deck Summary (AI-generated)" below the Description field.
-
-- The summary will be stored in a new `deck_summary` column on `user_startup_profiles`
-- Users can see what context the AI extracted and edit/refine it if needed (making it editable, not read-only)
-- This summary, along with the deck content, will be passed to the analysis engine as additional context when generating personalized insights
-
-**Database change:** Add `deck_summary` (text, nullable) column to `user_startup_profiles`.
-
-**Edge function change (parse-deck):** Instead of extracting structured fields, the AI prompt will be changed to produce a comprehensive narrative summary of the deck (2-3 paragraphs covering what the company does, its stage, market, traction, team, etc.).
-
-**UI change (StartupProfileDialog):** Remove the `onFieldsExtracted` callback that pre-fills form fields. Instead, when the deck is analyzed, populate only the new "Deck Summary" textarea. The DeckUploadZone component will return a summary string instead of structured fields.
-
-**Analysis engine change (analyze-episode):** The personalization prompt will include the `deck_summary` alongside existing profile fields for richer context.
+- Add migration: `ALTER TABLE public.episodes ADD COLUMN analyzed_by uuid;`
+- Redeploy the `analyze-episode` edge function (no code change needed there -- it already references the column correctly)
 
 ---
 
-### 3. Add "Re-Analyze" Button on Episode Detail Page
+### Part 2: Smart Profile Selection UX
 
-Next to the existing "Watch Episode" button, add a "Re-Analyze" button. When clicked:
+Currently when "Use Saved Profile" is toggled on, a separate "Select Profile" dropdown always appears. The user wants:
 
-- It re-runs the analysis for that episode URL using the user's current startup profile (which may have changed since the original analysis)
-- The old lessons, callouts, and personalized insights for that episode are deleted and replaced with fresh ones
-- Shows a confirmation dialog first ("This will replace the existing analysis with a fresh one based on your current profile. Continue?")
-- Shows a loading state while re-analyzing
+- **1 profile:** Auto-select it when toggling "Use Saved Profile" on. No dropdown needed -- just show the profile name inline on the toggle bar.
+- **Multiple profiles:** Show a dropdown selector directly on the toggle bar row (not as a separate field below).
+- **No profiles:** Hide the "Use Saved Profile" toggle entirely (current behavior).
 
-**UI change (EpisodeDetail.tsx):** Add a "Re-Analyze" button with a RefreshCw icon next to "Watch Episode." On click, show a confirmation dialog, then call the analyze-episode edge function with the episode URL and current profile. On success, delete old data and refresh.
+**Changes to `StartupProfileForm.tsx`:**
+- When `savedProfiles.length === 1`, auto-set `useExisting = true` on mount and auto-select the single profile. Display the company name inline next to the toggle.
+- When `savedProfiles.length > 1`, embed a compact dropdown selector directly in the toggle bar row.
+- Remove the separate "Select Profile" section below the toggle.
 
 ---
 
-### Technical Details
+### Part 3: Split Description into Two Sections
 
-**Database Migration:**
-- Add `deck_summary` text column to `user_startup_profiles`
+Currently there is one "Description" textarea. The user wants two distinct sections:
 
-**Files to Modify:**
-- `supabase/functions/parse-deck/index.ts` -- Change AI prompt from structured extraction to narrative summary generation
-- `src/components/DeckUploadZone.tsx` -- Return a summary string instead of structured fields
-- `src/components/StartupProfileDialog.tsx` -- Remove field pre-filling, add Deck Summary textarea below Description
-- `src/components/EpisodeDetail.tsx` -- Add Re-Analyze button with confirmation dialog and loading state
-- `supabase/functions/analyze-episode/index.ts` -- Include `deck_summary` in personalization prompt; support re-analysis (delete old data for episode before inserting new)
+1. **"Description" (manual)** -- A free-form textarea where founders write whatever they want about their company and challenges. This is what exists today.
+2. **"AI Context Summary" (from deck/website)** -- A separate, editable textarea that shows the AI-generated summary from any uploaded decks. This is the `deck_summary` field that already exists in the database.
 
-**Flow for Re-Analyze:**
-1. User clicks "Re-Analyze" on episode detail
-2. Confirmation dialog appears
-3. On confirm: delete existing lessons, callouts, personalized_insights for that episode
-4. Call analyze-episode with the episode URL + user's current profile (including deck_summary)
-5. Refresh episode detail view with new data
+**Changes to `StartupProfileForm.tsx`:**
+- Keep the existing "Description" textarea as-is for manual input
+- Add a second textarea below it labeled "AI Context Summary" (or similar) that displays the `deck_summary` field from the selected profile
+- This field should be read-only in the analysis form context (since it's populated via the Startup Profiles dialog where decks are uploaded), with a note like "Upload a deck in your Startup Profile to populate this"
+- When submitting to analysis, pass both `description` and `deck_summary` to the edge function
+
+**Changes to `AnalysisForm.tsx`:**
+- Update `SavedProfile` interface to include `deck_summary` and `role` fields
+- Pass `deck_summary` through to the `analyze-episode` edge function call
+
+---
+
+### Technical Summary
+
+| File | Change |
+|---|---|
+| `supabase/migrations/` (new) | Add `analyzed_by uuid` column to `episodes` |
+| `supabase/functions/analyze-episode/index.ts` | No change needed for the column fix; already references it |
+| `src/components/StartupProfileForm.tsx` | Smart auto-select for single profile, inline dropdown for multiple, split Description into manual + AI summary |
+| `src/components/AnalysisForm.tsx` | Update `SavedProfile` interface to include `deck_summary` and `role`; pass `deck_summary` to edge function |
 
