@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ExternalLink, TrendingUp, Target, Lightbulb, RefreshCw, Loader2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, TrendingUp, Target, Lightbulb, RefreshCw, Loader2, Plus, X } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -17,6 +17,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface Lesson {
   id: string;
@@ -25,6 +38,12 @@ interface Lesson {
   actionability_score: number;
   category: string | null;
   founder_attribution: string | null;
+  lesson_tags?: {
+    tags: {
+      id: string;
+      name: string;
+    } | null;
+  }[];
 }
 
 interface Callout {
@@ -64,6 +83,98 @@ interface EpisodeDetailProps {
   onBack: () => void;
 }
 
+const LessonTags = ({ lessonId, initialTags, onUpdate }: { lessonId: string, initialTags: { id: string, name: string }[], onUpdate: () => void }) => {
+  const [open, setOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+  const [availableTags, setAvailableTags] = useState<{ id: string, name: string }[]>([]);
+
+  // Fetch available tags when opening popover
+  useEffect(() => {
+    if (open) {
+      const fetchTags = async () => {
+        const { data } = await supabase.from('tags').select('id, name').order('name');
+        if (data) setAvailableTags(data);
+      };
+      fetchTags();
+    }
+  }, [open]);
+
+  const handleAddTag = async (tagName: string) => {
+    if (!tagName.trim()) return;
+
+     // Check if tag exists
+     let tagId;
+     const existingTag = availableTags.find(t => t.name.toLowerCase() === tagName.toLowerCase().trim());
+     if (existingTag) {
+       tagId = existingTag.id;
+     } else {
+       // Create new tag
+       const { data } = await supabase.from('tags').insert({ name: tagName.toLowerCase().trim() }).select().single();
+       if (data) tagId = data.id;
+     }
+
+     if (tagId) {
+       await supabase.from('lesson_tags').insert({ lesson_id: lessonId, tag_id: tagId });
+       onUpdate();
+       setOpen(false);
+       setSearchValue("");
+     }
+  };
+
+  const handleRemoveTag = async (tagId: string) => {
+    await supabase.from('lesson_tags').delete().match({ lesson_id: lessonId, tag_id: tagId });
+    onUpdate();
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2 mt-3 items-center">
+      {initialTags.map(tag => (
+        <Badge key={tag.id} variant="outline" className="pl-2 pr-1 gap-1 text-[10px] sm:text-xs hover:bg-muted">
+           #{tag.name}
+           <button
+             onClick={() => handleRemoveTag(tag.id)}
+             className="ml-1 hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5 transition-colors"
+           >
+             <X className="w-3 h-3" />
+           </button>
+        </Badge>
+      ))}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] sm:text-xs text-muted-foreground hover:text-foreground border border-dashed border-border hover:border-foreground/20">
+            <Plus className="w-3 h-3 mr-1" /> Add Tag
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="p-0 w-52" align="start">
+          <Command>
+            <CommandInput placeholder="Search or create tag..." value={searchValue} onValueChange={setSearchValue} />
+            <CommandList>
+              <CommandEmpty className="py-2 px-2">
+                 <button
+                   className="w-full text-left px-2 py-1.5 text-sm text-primary hover:bg-primary/10 rounded-sm flex items-center"
+                   onClick={() => handleAddTag(searchValue)}
+                 >
+                   <Plus className="w-3 h-3 mr-2" />
+                   Create "#{searchValue}"
+                 </button>
+              </CommandEmpty>
+              <CommandGroup heading="Available Tags" className="max-h-64 overflow-auto">
+                {availableTags
+                  .filter(t => !initialTags.some(existing => existing.id === t.id))
+                  .map((tag) => (
+                  <CommandItem key={tag.id} onSelect={() => handleAddTag(tag.name)}>
+                    {tag.name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -89,7 +200,15 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
 
       const { data: lessonsData, error: lessonsError } = await supabase
         .from('lessons')
-        .select('*')
+        .select(`
+          *,
+          lesson_tags (
+            tags (
+              id,
+              name
+            )
+          )
+        `)
         .eq('episode_id', episodeId)
         .order('impact_score', { ascending: false });
 
@@ -155,7 +274,8 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
         await supabase.from('personalized_insights').delete().in('lesson_id', lessonIds);
       }
 
-      // Delete old lessons and callouts
+      // Delete old lessons and callouts (tags will cascade delete due to schema setup if properly configured, but safe to leave tags alone as they are M:N)
+      // Actually lesson_tags cascades on lesson delete.
       await supabase.from('lessons').delete().eq('episode_id', episodeId);
       await supabase.from('chavel_callouts').delete().eq('episode_id', episodeId);
 
@@ -346,6 +466,11 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
                     — {lesson.founder_attribution}
                   </p>
                 )}
+                <LessonTags
+                   lessonId={lesson.id}
+                   initialTags={lesson.lesson_tags?.map(lt => lt.tags).filter(Boolean) as {id: string, name: string}[] || []}
+                   onUpdate={fetchEpisodeDetails}
+                />
               </div>
             ))}
           </div>
