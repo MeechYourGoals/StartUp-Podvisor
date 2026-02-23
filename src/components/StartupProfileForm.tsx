@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Loader2 } from "lucide-react";
+import { Loader2, FileText } from "lucide-react";
 
 interface StartupProfile {
   company_name: string;
@@ -19,6 +18,7 @@ interface StartupProfile {
   employee_count: number;
   industry: string;
   description: string;
+  deck_summary?: string;
 }
 
 interface SavedProfile {
@@ -31,6 +31,8 @@ interface SavedProfile {
   employee_count: number | null;
   industry: string | null;
   description: string;
+  deck_summary?: string | null;
+  role?: string | null;
 }
 
 interface StartupProfileFormProps {
@@ -54,7 +56,16 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
     employee_count: 0,
     industry: "",
     description: "",
+    deck_summary: "",
   });
+
+  // Auto-select if only one profile exists
+  useEffect(() => {
+    if (savedProfiles.length === 1) {
+      setUseExisting(true);
+      handleSelectProfile(savedProfiles[0].id);
+    }
+  }, [savedProfiles]);
 
   const handleSelectProfile = (profileId: string) => {
     setSelectedProfileId(profileId);
@@ -69,6 +80,28 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
         employee_count: profile.employee_count || 0,
         industry: profile.industry || "",
         description: profile.description,
+        deck_summary: profile.deck_summary || "",
+      });
+    }
+  };
+
+  const handleToggleUseExisting = (checked: boolean) => {
+    setUseExisting(checked);
+    if (checked && savedProfiles.length === 1) {
+      handleSelectProfile(savedProfiles[0].id);
+    }
+    if (!checked) {
+      setSelectedProfileId("");
+      setFormData({
+        company_name: "",
+        company_website: "",
+        stage: "",
+        funding_raised: "",
+        valuation: "",
+        employee_count: 0,
+        industry: "",
+        description: "",
+        deck_summary: "",
       });
     }
   };
@@ -76,7 +109,6 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Only validate if user wants to save profile OR is using an existing one
     if ((saveProfile || useExisting) && (!formData.company_name || !formData.stage || !formData.description)) {
       toast({
         title: "Missing Information",
@@ -89,6 +121,8 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
     onSubmit(formData, saveProfile && !useExisting);
   };
 
+  const selectedProfile = savedProfiles.find(p => p.id === selectedProfileId);
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -100,35 +134,40 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           {savedProfiles.length > 0 && (
-            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-              <div className="flex items-center space-x-2">
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg gap-3">
+              <div className="flex items-center space-x-2 shrink-0">
                 <Switch
                   id="use-existing"
                   checked={useExisting}
-                  onCheckedChange={setUseExisting}
+                  onCheckedChange={handleToggleUseExisting}
                 />
                 <Label htmlFor="use-existing" className="cursor-pointer">
                   Use Saved Profile
                 </Label>
               </div>
-            </div>
-          )}
+              
+              {/* Single profile: show name inline */}
+              {useExisting && savedProfiles.length === 1 && (
+                <span className="text-sm font-medium text-primary truncate">
+                  {savedProfiles[0].company_name}
+                </span>
+              )}
 
-          {useExisting && savedProfiles.length > 0 && (
-            <div className="space-y-2">
-              <Label>Select Profile</Label>
-              <Select value={selectedProfileId} onValueChange={handleSelectProfile}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a saved profile" />
-                </SelectTrigger>
-                <SelectContent>
-                  {savedProfiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id}>
-                      {profile.company_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Multiple profiles: inline dropdown */}
+              {useExisting && savedProfiles.length > 1 && (
+                <Select value={selectedProfileId} onValueChange={handleSelectProfile}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Choose profile" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {savedProfiles.map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id}>
+                        {profile.company_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           )}
 
@@ -256,6 +295,31 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
               className="min-h-[120px]"
               disabled={useExisting || isAnalyzing}
             />
+          </div>
+
+          {/* AI Context Summary from deck uploads */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="deck_summary">AI Context Summary</Label>
+            </div>
+            {formData.deck_summary ? (
+              <Textarea
+                id="deck_summary"
+                value={formData.deck_summary}
+                className="min-h-[100px] text-sm bg-muted/50"
+                readOnly
+                disabled
+              />
+            ) : (
+              <div className="rounded-md border border-dashed border-muted-foreground/30 p-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  No deck summary available. Upload a pitch deck in your{" "}
+                  <span className="font-medium text-foreground">Startup Profile</span>{" "}
+                  to generate AI context for more accurate analysis.
+                </p>
+              </div>
+            )}
           </div>
 
           <Button type="submit" className="w-full" disabled={isAnalyzing}>

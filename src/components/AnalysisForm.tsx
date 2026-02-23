@@ -30,6 +30,8 @@ interface SavedProfile {
   employee_count: number | null;
   industry: string | null;
   description: string;
+  deck_summary?: string | null;
+  role?: string | null;
 }
 
 export const AnalysisForm = () => {
@@ -121,7 +123,8 @@ export const AnalysisForm = () => {
         body: { 
           episodeUrl, 
           podcastName: podcastName.trim() || undefined,
-          startupProfile: profile
+          startupProfile: profile,
+          deckSummary: profile?.deck_summary || undefined
         }
       });
 
