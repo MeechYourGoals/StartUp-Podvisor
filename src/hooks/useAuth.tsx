@@ -33,5 +33,21 @@ export const useAuth = () => {
     setSession(null);
   };
 
-  return { user, session, loading, signOut };
+  const deleteAccount = async () => {
+    if (!user) return { error: new Error("No user logged in") };
+
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-user-account");
+
+      if (error) throw error;
+
+      await signOut();
+      return { data };
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      return { error };
+    }
+  };
+
+  return { user, session, loading, signOut, deleteAccount };
 };

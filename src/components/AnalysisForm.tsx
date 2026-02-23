@@ -9,6 +9,7 @@ import { useSubscription } from "@/contexts/SubscriptionContext";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StartupProfileForm } from "./StartupProfileForm";
 import { UpgradePrompt } from "./subscription";
+import { triggerHapticFeedback } from "@/lib/capacitor";
 
 const POPULAR_PODCASTS = [
   "Crucible Moments",
@@ -70,6 +71,7 @@ export const AnalysisForm = () => {
     e.preventDefault();
 
     if (!episodeUrl.trim()) {
+      triggerHapticFeedback('medium');
       toast({
         title: "Missing Information",
         description: "Please enter an episode URL",
@@ -81,6 +83,7 @@ export const AnalysisForm = () => {
     // Check analysis limit before proceeding
     const analysisCheck = canAnalyzeVideo();
     if (!analysisCheck.allowed) {
+      triggerHapticFeedback('medium');
       toast({
         title: "Analysis Limit Reached",
         description: analysisCheck.message || "Upgrade to analyze more videos.",
@@ -89,10 +92,12 @@ export const AnalysisForm = () => {
       return;
     }
 
+    triggerHapticFeedback('light');
     setStep("profile");
   };
 
   const handleProfileSubmit = async (profile: any, saveProfile: boolean) => {
+    triggerHapticFeedback('medium');
     setStartupContext(profile);
 
     if (saveProfile) {
@@ -130,6 +135,7 @@ export const AnalysisForm = () => {
 
       if (error) {
         console.error("Analysis error:", error);
+        triggerHapticFeedback('medium');
         toast({
           title: "Analysis Failed",
           description: error.message || "Failed to analyze episode. Please try again.",
@@ -142,6 +148,7 @@ export const AnalysisForm = () => {
 
       // Track the analysis for usage limits
       await trackAnalysis();
+      triggerHapticFeedback('heavy');
       await refreshSubscription();
 
       toast({
