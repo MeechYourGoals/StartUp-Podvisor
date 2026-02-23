@@ -28,6 +28,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Card } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { triggerHapticFeedback } from "@/lib/capacitor";
 
 const Index = () => {
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
@@ -54,6 +55,7 @@ const Index = () => {
   }
 
   const handleToggle = (tab: "profiles" | "bookmarks") => {
+    triggerHapticFeedback('light');
     if (profileOpen && activeTab === tab) {
       setProfileOpen(false);
     } else {
@@ -78,19 +80,19 @@ const Index = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => handleToggle("profiles")}>
+                  <DropdownMenuItem onClick={() => { triggerHapticFeedback('light'); handleToggle("profiles"); }}>
                     <Briefcase className="h-4 w-4 mr-2" />
                     Startup Profiles
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleToggle("bookmarks")}>
+                  <DropdownMenuItem onClick={() => { triggerHapticFeedback('light'); handleToggle("bookmarks"); }}>
                     <Bookmark className="h-4 w-4 mr-2" />
                     Bookmarks
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setProfileOpen(false); navigate("/account"); }}>
+                  <DropdownMenuItem onClick={() => { triggerHapticFeedback('light'); setProfileOpen(false); navigate("/account"); }}>
                     <User className="h-4 w-4 mr-2" />
                     Account
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => signOut()}>
+                  <DropdownMenuItem onClick={() => { triggerHapticFeedback('light'); signOut(); }}>
                     <LogOut className="h-4 w-4 mr-2" />
                     Sign Out
                   </DropdownMenuItem>

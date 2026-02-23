@@ -28,6 +28,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { triggerHapticFeedback } from "@/lib/capacitor";
 
 interface Episode {
   id: string;
@@ -114,6 +115,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   };
 
   const toggleIndustryFilter = (industry: string) => {
+    triggerHapticFeedback('light');
     setSelectedIndustries(prev => {
       const newSet = new Set(prev);
       if (newSet.has(industry)) newSet.delete(industry);
@@ -202,6 +204,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   );
 
   const handleSort = (col: SortColumn) => {
+    triggerHapticFeedback('light');
     if (sortColumn === col) {
       setSortDirection(prev => (prev === "asc" ? "desc" : "asc"));
     } else {
@@ -269,6 +272,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
+    triggerHapticFeedback('medium');
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -284,6 +288,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   };
 
   const handleDeleteFolder = async (folderId: string) => {
+    triggerHapticFeedback('medium');
     const { error } = await supabase
       .from("episode_folders")
       .delete()
@@ -296,6 +301,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
   };
 
   const handleAssignFolder = async (episodeId: string, folderId: string) => {
+    triggerHapticFeedback('light');
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -317,7 +323,9 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
 
   const handleDelete = async (episodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    triggerHapticFeedback('medium');
     if (!confirm("Delete this episode analysis? This will also remove all associated lessons, callouts, and personalized insights.")) return;
+    triggerHapticFeedback('heavy');
 
     const previous = allEpisodes;
     setAllEpisodes(prev => prev.filter(ep => ep.id !== episodeId));
@@ -359,6 +367,7 @@ export const EpisodesTable = ({ onSelectEpisode }: EpisodesTableProps) => {
 
   const handleCopyLink = (url: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    triggerHapticFeedback('light');
     navigator.clipboard.writeText(url);
     toast({ title: "Link copied to clipboard" });
   };
