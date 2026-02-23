@@ -268,6 +268,7 @@ export type Database = {
       episodes: {
         Row: {
           analysis_status: string | null
+          analyzed_by: string | null
           company_id: string | null
           created_at: string | null
           founder_names: string | null
@@ -281,6 +282,7 @@ export type Database = {
         }
         Insert: {
           analysis_status?: string | null
+          analyzed_by?: string | null
           company_id?: string | null
           created_at?: string | null
           founder_names?: string | null
@@ -294,6 +296,7 @@ export type Database = {
         }
         Update: {
           analysis_status?: string | null
+          analyzed_by?: string | null
           company_id?: string | null
           created_at?: string | null
           founder_names?: string | null

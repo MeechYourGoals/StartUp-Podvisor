@@ -1,0 +1,1 @@
+ALTER TABLE public.episodes ADD COLUMN analyzed_by uuid;
