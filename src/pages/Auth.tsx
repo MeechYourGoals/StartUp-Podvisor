@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { lovable } from "@/integrations/lovable/index";
+import { triggerHapticFeedback } from "@/lib/capacitor";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -21,6 +22,7 @@ const Auth = () => {
   const { toast } = useToast();
 
   const handleGoogleSignIn = async () => {
+    triggerHapticFeedback('light');
     setGoogleLoading(true);
     try {
       const { error } = await lovable.auth.signInWithOAuth("google", {
@@ -45,6 +47,7 @@ const Auth = () => {
   };
 
   const handleAppleSignIn = async () => {
+    triggerHapticFeedback('light');
     setAppleLoading(true);
     try {
       const { error } = await lovable.auth.signInWithOAuth("apple", {
@@ -111,6 +114,7 @@ const Auth = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    triggerHapticFeedback('medium');
     setLoading(true);
 
     try {
@@ -147,6 +151,7 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    triggerHapticFeedback('medium');
     setLoading(true);
 
     try {
@@ -227,6 +232,7 @@ const Auth = () => {
               </Button>
             </form>
           ) : (
+          <>
           <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
@@ -403,6 +409,20 @@ const Auth = () => {
               </form>
             </TabsContent>
           </Tabs>
+
+          <div className="mt-6 text-center text-xs text-muted-foreground">
+            <p>
+              By continuing, you agree to our{" "}
+              <Link to="/terms-of-service" className="underline hover:text-primary">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy-policy" className="underline hover:text-primary">
+                Privacy Policy
+              </Link>.
+            </p>
+          </div>
+          </>
           )}
         </CardContent>
       </Card>

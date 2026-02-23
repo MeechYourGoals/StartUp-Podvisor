@@ -1,0 +1,95 @@
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+const PrivacyPolicy = () => {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen bg-background p-6 md:p-12 safe-area-inset">
+      <div className="max-w-3xl mx-auto">
+        <Button
+          variant="ghost"
+          onClick={() => navigate(-1)}
+          className="mb-8 -ml-2"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+
+        <h1 className="text-4xl font-bold mb-8">Privacy Policy</h1>
+
+        <div className="prose prose-slate dark:prose-invert max-w-none space-y-6">
+          <p className="text-muted-foreground italic">Last Updated: {new Date().toLocaleDateString()}</p>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">1. Introduction</h2>
+            <p>
+              Welcome to Podvisor. We respect your privacy and are committed to protecting your personal data.
+              This privacy policy will inform you about how we look after your personal data when you use our
+              application and tell you about your privacy rights and how the law protects you.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">2. The Data We Collect</h2>
+            <p>
+              We may collect, use, store and transfer different kinds of personal data about you which we have
+              grouped together as follows:
+            </p>
+            <ul className="list-disc pl-6 space-y-2">
+              <li><strong>Identity Data</strong> includes email address.</li>
+              <li><strong>Technical Data</strong> includes internet protocol (IP) address, your login data, browser type and version, time zone setting and location, browser plug-in types and versions, operating system and platform, and other technology on the devices you use to access this app.</li>
+              <li><strong>Usage Data</strong> includes information about how you use our app.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">3. How We Use Your Data</h2>
+            <p>
+              We will only use your personal data when the law allows us to. Most commonly, we will use your
+              personal data in the following circumstances:
+            </p>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>To register you as a new user.</li>
+              <li>To provide and manage your account.</li>
+              <li>To process and deliver your subscription.</li>
+              <li>To improve our app, services, and user experience.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">4. Data Security</h2>
+            <p>
+              We have put in place appropriate security measures to prevent your personal data from being
+              accidentally lost, used or accessed in an unauthorized way, altered or disclosed.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">5. Your Legal Rights</h2>
+            <p>
+              Under certain circumstances, you have rights under data protection laws in relation to your
+              personal data, including the right to request access, correction, erasure, restriction,
+              transfer, or to object to processing.
+            </p>
+            <p>
+              You can delete your account and all associated data at any time through the Account settings
+              within the app.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">6. Contact Us</h2>
+            <p>
+              If you have any questions about this privacy policy or our privacy practices, please contact
+              us at support@podvisor.app.
+            </p>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PrivacyPolicy;

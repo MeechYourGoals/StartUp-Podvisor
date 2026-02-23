@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { Home, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { triggerHapticFeedback } from "@/lib/capacitor";
 
 const navItems = [
   { path: "/", icon: Home, label: "Home" },
@@ -23,7 +24,7 @@ export const MobileBottomNav = () => {
           return (
             <button
               key={path}
-              onClick={() => navigate(path)}
+              onClick={() => { triggerHapticFeedback('light'); navigate(path); }}
               className={cn(
                 "flex flex-col items-center justify-center flex-1 min-h-[44px] gap-0.5 transition-colors touch-manipulation",
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
