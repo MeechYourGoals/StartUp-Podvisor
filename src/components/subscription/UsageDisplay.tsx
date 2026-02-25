@@ -31,6 +31,9 @@ export function UsageDisplay({ showUpgrade = true, compact = false }: UsageDispl
 
   const { limits, tier } = subscription;
   const tierInfo = TIER_PRICING[tier];
+  
+  // Founder/super admin accounts have max >= 9999 — treat as unlimited
+  const isUnlimited = (max: number) => max >= 9999;
 
   const usageItems = [
     {
@@ -74,6 +77,20 @@ export function UsageDisplay({ showUpgrade = true, compact = false }: UsageDispl
           const percentage = (item.used / item.max) * 100;
           const isNearLimit = percentage >= 80;
           const isAtLimit = item.used >= item.max;
+
+          if (isUnlimited(item.max)) {
+            return (
+              <div key={item.label} className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="flex items-center gap-1">
+                    <item.icon className="h-3 w-3" />
+                    {item.label}
+                  </span>
+                  <span className="text-primary font-medium">Unlimited</span>
+                </div>
+              </div>
+            );
+          }
 
           return (
             <div key={item.label} className="space-y-1">
@@ -144,6 +161,22 @@ export function UsageDisplay({ showUpgrade = true, compact = false }: UsageDispl
           const percentage = (item.used / item.max) * 100;
           const isNearLimit = percentage >= 80;
           const isAtLimit = item.used >= item.max;
+
+          if (isUnlimited(item.max)) {
+            return (
+              <div key={item.label} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={cn('p-1.5 rounded', item.color + '/10')}>
+                      <item.icon className={cn('h-4 w-4', item.color.replace('bg-', 'text-'))} />
+                    </div>
+                    <span className="font-medium">{item.label}</span>
+                  </div>
+                  <span className="text-sm text-primary font-medium">Unlimited</span>
+                </div>
+              </div>
+            );
+          }
 
           return (
             <div key={item.label} className="space-y-2">
