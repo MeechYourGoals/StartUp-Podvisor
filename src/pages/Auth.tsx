@@ -25,20 +25,39 @@ const Auth = () => {
     triggerHapticFeedback('light');
     setGoogleLoading(true);
     try {
-      const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-      });
-      if (error) {
-        toast({
-          title: "Google sign-in failed",
-          description: error.message,
-          variant: "destructive",
+      // Check if we're on the published domain (not a preview URL)
+      const isPublishedDomain = window.location.hostname === 'startup-podvisor.lovable.app';
+      
+      if (isPublishedDomain) {
+        // On published domain, bypass auth-bridge and use Supabase directly
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: window.location.origin,
+            skipBrowserRedirect: true,
+          },
         });
+        if (error) throw error;
+        if (data?.url) {
+          window.location.href = data.url;
+        }
+      } else {
+        // On preview domains, use Lovable managed auth
+        const { error } = await lovable.auth.signInWithOAuth("google", {
+          redirect_uri: window.location.origin,
+        });
+        if (error) {
+          toast({
+            title: "Google sign-in failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: error?.message || "An unexpected error occurred",
         variant: "destructive",
       });
     } finally {
@@ -50,20 +69,36 @@ const Auth = () => {
     triggerHapticFeedback('light');
     setAppleLoading(true);
     try {
-      const { error } = await lovable.auth.signInWithOAuth("apple", {
-        redirect_uri: window.location.origin,
-      });
-      if (error) {
-        toast({
-          title: "Apple sign-in failed",
-          description: error.message,
-          variant: "destructive",
+      const isPublishedDomain = window.location.hostname === 'startup-podvisor.lovable.app';
+      
+      if (isPublishedDomain) {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: "apple",
+          options: {
+            redirectTo: window.location.origin,
+            skipBrowserRedirect: true,
+          },
         });
+        if (error) throw error;
+        if (data?.url) {
+          window.location.href = data.url;
+        }
+      } else {
+        const { error } = await lovable.auth.signInWithOAuth("apple", {
+          redirect_uri: window.location.origin,
+        });
+        if (error) {
+          toast({
+            title: "Apple sign-in failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: error?.message || "An unexpected error occurred",
         variant: "destructive",
       });
     } finally {

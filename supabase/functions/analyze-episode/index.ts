@@ -349,13 +349,13 @@ INSTRUCTIONS:
         actionability_score: clampScore(lesson.actionabilityScore),
         category: lesson.category,
         founder_attribution: lesson.founderAttribution,
-        tags: lesson.tags || []
+        tags: (lesson.tags || []) as string[]
       }));
 
       // Insert lessons
       const { data: insertedLessons, error: lessonsError } = await supabase
         .from('lessons')
-        .insert(lessonsWithTags.map(({ tags, ...rest }) => ({
+        .insert(lessonsWithTags.map(({ tags: _tags, ...rest }: { tags: string[], [key: string]: any }) => ({
           ...rest,
           episode_id: episode.id
         })))
@@ -416,13 +416,12 @@ INSTRUCTIONS:
 
               // 2. Link tag to lesson
               if (tagId) {
-                await supabase
+                const { error: linkError } = await supabase
                   .from('lesson_tags')
-                  .insert({ lesson_id: lessonId, tag_id: tagId })
-                  .catch(err => {
-                    // Ignore unique violation if link already exists
-                    if (err.code !== '23505') console.error('Error linking tag:', err);
-                  });
+                  .insert({ lesson_id: lessonId, tag_id: tagId });
+                if (linkError && linkError.code !== '23505') {
+                  console.error('Error linking tag:', linkError);
+                }
               }
             }
           }
