@@ -1,4 +1,4 @@
--- Fix bookmark_folders RLS policies to restrict access to owners only
+-- Restrict bookmark_folders RLS policies to access owners only
 
 -- Drop the overly permissive public policies
 DROP POLICY IF EXISTS "Public read access for bookmark_folders" ON public.bookmark_folders;
