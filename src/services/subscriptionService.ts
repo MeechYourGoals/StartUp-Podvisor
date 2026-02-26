@@ -1,8 +1,9 @@
 import { Capacitor } from '@capacitor/core';
+import despia from 'despia-native';
 import { supabase } from '@/integrations/supabase/client';
 import type { SubscriptionTier, SubscriptionInfo, TierLimits } from '@/types/subscription';
 import { TIER_LIMITS, REVENUECAT_ENTITLEMENTS } from '@/types/subscription';
-import despia from 'despia-native';
+import { isDespia, launchDespiaPaywall } from './despiaService';
 
 /** Founder/Super Admin emails with unlimited access - no feature limits */
 const FOUNDER_EMAILS = ['ccamechi@gmail.com'];
@@ -12,6 +13,11 @@ let Purchases: typeof import('@revenuecat/purchases-capacitor').Purchases | null
 
 // Initialize RevenueCat on native platforms
 export async function initializeRevenueCat(userId: string): Promise<void> {
+  if (isDespia()) {
+    console.log('RevenueCat: Skipping initialization on Despia platform (native handling)');
+    return;
+  }
+
   if (!Capacitor.isNativePlatform()) {
     console.log('RevenueCat: Skipping initialization on web platform');
     return;
@@ -90,6 +96,20 @@ export async function getRevenueCatOfferings() {
 
 // Purchase a package via RevenueCat
 export async function purchasePackage(packageId: string): Promise<boolean> {
+  if (window.navigator.userAgent.includes('Despia')) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      // Use Despia native bridge for purchase
+      despia(`revenuecat://purchase?external_id=${user.id}&product=${packageId}`);
+      return true; // The actual success will be handled by the iapSuccess callback
+    } catch (error) {
+      console.error('Despia purchase failed', error);
+      return false;
+    }
+  }
+
   if (!Purchases || !Capacitor.isNativePlatform()) {
     return false;
   }

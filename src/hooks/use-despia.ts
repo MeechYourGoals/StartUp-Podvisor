@@ -1,8 +1,15 @@
 
-export function useDespia() {
-  const userAgent = navigator.userAgent.toLowerCase();
-  const isDespia = userAgent.includes('despia');
-  const isDespiaIOS = isDespia && (userAgent.includes('iphone') || userAgent.includes('ipad'));
-  const isDespiaAndroid = isDespia && userAgent.includes('android');
-  return { isDespia, isDespiaIOS, isDespiaAndroid };
-}
+import { useState, useEffect } from "react";
+
+export const useDespia = () => {
+  const [isDespia, setIsDespia] = useState(false);
+
+  useEffect(() => {
+    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    if (/Despia/i.test(userAgent)) {
+      setIsDespia(true);
+    }
+  }, []);
+
+  return isDespia;
+};
