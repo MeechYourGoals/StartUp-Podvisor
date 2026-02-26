@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/hooks/useAuth';
+import { useDespia } from '@/hooks/use-despia';
 import {
   initializeRevenueCat,
   identifyUser,
@@ -12,6 +13,9 @@ import {
   getStripePortalUrl,
   purchasePackage,
   restorePurchases,
+  launchDespiaPaywall,
+  getDespiaEntitlements,
+  syncSubscriptionToSupabase,
 } from '@/services/subscriptionService';
 import type { SubscriptionInfo, SubscriptionTier, TierLimits } from '@/types/subscription';
 import { TIER_PRICING, STRIPE_PRICE_IDS } from '@/types/subscription';
@@ -35,10 +39,13 @@ const SubscriptionContext = createContext<SubscriptionContextType | null>(null);
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const { isDespia } = useDespia();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isNative = Capacitor.isNativePlatform();
+
+  // Treat Despia as native for UI purposes
+  const isNative = Capacitor.isNativePlatform() || isDespia;
 
   const refreshSubscription = useCallback(async () => {
     if (!user) {
@@ -52,8 +59,11 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       setError(null);
 
       // On native platforms, also check RevenueCat entitlements
-      if (isNative) {
+      if (Capacitor.isNativePlatform()) {
         await getRevenueCatEntitlements();
+      } else if (isDespia) {
+        const tier = await getDespiaEntitlements();
+        await syncSubscriptionToSupabase(tier);
       }
 
       const info = await getSubscriptionInfo();
@@ -74,19 +84,37 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     } finally {
       setLoading(false);
     }
-  }, [user, isNative]);
+  }, [user, isDespia]);
+
+  // Handle global Despia purchase callback
+  useEffect(() => {
+    if (isDespia) {
+      window.onRevenueCatPurchase = async () => {
+        console.log('Despia: Purchase completed, refreshing entitlements...');
+        // Wait a moment for webhook to process potentially, but primarily rely on client entitlement check
+        setTimeout(async () => {
+          await refreshSubscription();
+        }, 1000);
+      };
+    }
+    return () => {
+      if (isDespia) {
+        window.onRevenueCatPurchase = undefined;
+      }
+    };
+  }, [isDespia, refreshSubscription]);
 
   // Initialize RevenueCat and load subscription on mount
   useEffect(() => {
     async function init() {
-      if (user && isNative) {
+      if (user && Capacitor.isNativePlatform()) {
         await initializeRevenueCat(user.id);
         await identifyUser(user.id);
       }
       await refreshSubscription();
     }
     init();
-  }, [user, isNative, refreshSubscription]);
+  }, [user, refreshSubscription]);
 
   const canCreateProfile = useCallback(() => {
     if (!subscription?.limits) {
@@ -116,9 +144,15 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   const upgradeTo = useCallback(async (tier: SubscriptionTier) => {
     if (tier === 'free') return;
+    if (!user) return;
 
-    if (isNative) {
-      // Use RevenueCat for native purchases
+    if (isDespia) {
+      // Use Despia native paywall
+      // Mapping tier to offering if needed, but using 'default' for now as per plan
+      await launchDespiaPaywall(user.id, 'default');
+      // The global callback will handle the refresh
+    } else if (Capacitor.isNativePlatform()) {
+      // Use RevenueCat for native purchases (Capacitor)
       const packageId = tier === 'seed' ? 'seed_monthly' : 'series_z_monthly';
       const success = await purchasePackage(packageId);
       if (success) {
@@ -135,10 +169,14 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         window.location.href = checkoutUrl;
       }
     }
-  }, [isNative, refreshSubscription]);
+  }, [isDespia, user, refreshSubscription]);
 
   const manageSubscription = useCallback(async () => {
-    if (isNative) {
+    if (isDespia) {
+      // Despia: launch paywall or just restore?
+      // Usually management is done via app store settings, but restore is a good action here too
+      await handleRestorePurchases();
+    } else if (Capacitor.isNativePlatform()) {
       // RevenueCat handles subscription management through the app store
       // Just refresh to get latest status
       await restorePurchases();
@@ -150,12 +188,18 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         window.location.href = portalUrl;
       }
     }
-  }, [isNative, refreshSubscription]);
+  }, [isDespia, refreshSubscription]);
 
   const handleRestorePurchases = useCallback(async () => {
-    await restorePurchases();
-    await refreshSubscription();
-  }, [refreshSubscription]);
+    if (isDespia) {
+       const tier = await getDespiaEntitlements();
+       await syncSubscriptionToSupabase(tier);
+       await refreshSubscription();
+    } else {
+       await restorePurchases();
+       await refreshSubscription();
+    }
+  }, [isDespia, refreshSubscription]);
 
   return (
     <SubscriptionContext.Provider
