@@ -88,6 +88,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     init();
   }, [user, isNative, refreshSubscription]);
 
+  // Handle global iapSuccess callback from Despia Native
+  useEffect(() => {
+    window.iapSuccess = (transactionData: any) => {
+      console.log('IAP Success:', transactionData);
+      refreshSubscription();
+    };
+
+    return () => {
+      // Clean up if necessary, though overwriting on unmount might not be needed
+      // window.iapSuccess = undefined;
+    };
+  }, [refreshSubscription]);
+
   const canCreateProfile = useCallback(() => {
     if (!subscription?.limits) {
       return { allowed: false, message: 'Loading subscription...' };
