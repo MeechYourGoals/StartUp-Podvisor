@@ -1,17 +1,15 @@
-import { useState, useEffect } from 'react';
 
-export function useDespia() {
+import { useState, useEffect } from "react";
+
+export const useDespia = () => {
   const [isDespia, setIsDespia] = useState(false);
 
   useEffect(() => {
-    // Check if running in Despia environment by inspecting user agent
-    const checkDespia = () => {
-      const isDespiaEnv = window.navigator.userAgent.includes('Despia');
-      setIsDespia(isDespiaEnv);
-    };
-
-    checkDespia();
+    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    if (/Despia/i.test(userAgent)) {
+      setIsDespia(true);
+    }
   }, []);
 
   return isDespia;
-}
+};

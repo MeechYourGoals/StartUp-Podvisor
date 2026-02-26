@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import despia from 'despia-native';
+import { useDespia } from "@/hooks/use-despia";
 
 interface ExportModalProps {
   episodeId?: string;
@@ -16,6 +18,7 @@ interface ExportModalProps {
 export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps) => {
   const [exporting, setExporting] = useState(false);
   const { toast } = useToast();
+  const isDespia = useDespia();
 
   const fetchEpisodeData = async (id: string) => {
     const { data: episode } = await supabase
@@ -44,20 +47,64 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
     return episodes;
   };
 
+  const handleExport = async (blob: Blob, filename: string, mimeType: string) => {
+    if (isDespia) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+
+        const path = `${user.id}/${Date.now()}-${filename}`;
+
+        // Upload to Supabase 'exports' bucket
+        const { error: uploadError } = await supabase.storage
+          .from('exports')
+          .upload(path, blob, {
+            contentType: mimeType,
+            upsert: true
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Get signed URL
+        const { data: { signedUrl } } = await supabase.storage
+          .from('exports')
+          .createSignedUrl(path, 3600, {
+            download: filename
+          }); // 1 hour expiry
+
+        if (!signedUrl) throw new Error("Failed to generate signed URL");
+
+        // Trigger native share
+        despia(signedUrl);
+
+        toast({ title: "Sharing initiated", description: "Opening share dialog..." });
+        onOpenChange(false);
+      } catch (error: any) {
+        console.error("Despia export error:", error);
+        toast({ title: "Export failed", description: error.message || "Could not share file", variant: "destructive" });
+      }
+    } else {
+      // Standard web download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      toast({ title: "Export complete", description: `${filename.split('.').pop()?.toUpperCase()} file downloaded` });
+      onOpenChange(false);
+    }
+  };
+
   const exportJSON = async () => {
     setExporting(true);
     try {
       const data = episodeId ? await fetchEpisodeData(episodeId) : await fetchAllData();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `founder-lessons-${episodeId ? 'episode' : 'all'}-${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      
-      toast({ title: "Export complete", description: "JSON file downloaded" });
-      onOpenChange(false);
+      const filename = `founder-lessons-${episodeId ? 'episode' : 'all'}-${new Date().toISOString().split('T')[0]}.json`;
+
+      await handleExport(blob, filename, 'application/json');
     } catch (error) {
       toast({ title: "Export failed", description: "Please try again", variant: "destructive" });
     } finally {
@@ -98,15 +145,9 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
 
       const csv = csvRows.map(row => row.join(',')).join('\n');
       const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `founder-lessons-${episodeId ? 'episode' : 'all'}-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const filename = `founder-lessons-${episodeId ? 'episode' : 'all'}-${new Date().toISOString().split('T')[0]}.csv`;
       
-      toast({ title: "Export complete", description: "CSV file downloaded" });
-      onOpenChange(false);
+      await handleExport(blob, filename, 'text/csv');
     } catch (error) {
       toast({ title: "Export failed", description: "Please try again", variant: "destructive" });
     } finally {
@@ -160,15 +201,9 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
       });
 
       const blob = new Blob([markdown], { type: 'text/markdown' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `founder-lessons-${episodeId ? 'episode' : 'all'}-${new Date().toISOString().split('T')[0]}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const filename = `founder-lessons-${episodeId ? 'episode' : 'all'}-${new Date().toISOString().split('T')[0]}.md`;
       
-      toast({ title: "Export complete", description: "Markdown file downloaded" });
-      onOpenChange(false);
+      await handleExport(blob, filename, 'text/markdown');
     } catch (error) {
       toast({ title: "Export failed", description: "Please try again", variant: "destructive" });
     } finally {
@@ -256,9 +291,10 @@ export const ExportModal = ({ episodeId, open, onOpenChange }: ExportModalProps)
         }
       });
 
-      doc.save(`executive-summary-${episodeId ? "episode" : "all"}-${new Date().toISOString().split("T")[0]}.pdf`);
-      toast({ title: "Export complete", description: "PDF file downloaded" });
-      onOpenChange(false);
+      const blob = doc.output('blob');
+      const filename = `executive-summary-${episodeId ? "episode" : "all"}-${new Date().toISOString().split("T")[0]}.pdf`;
+
+      await handleExport(blob, filename, 'application/pdf');
     } catch (error) {
       console.error("Export error:", error);
       toast({ title: "Export failed", description: "Please try again", variant: "destructive" });
