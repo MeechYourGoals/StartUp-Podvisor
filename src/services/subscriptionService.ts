@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import type { SubscriptionTier, SubscriptionInfo, TierLimits } from '@/types/subscription';
 import { TIER_LIMITS, REVENUECAT_ENTITLEMENTS } from '@/types/subscription';
+import { isDespia, launchDespiaPaywall } from './despiaService';
 
 /** Founder/Super Admin emails with unlimited access - no feature limits */
 const FOUNDER_EMAILS = ['ccamechi@gmail.com'];
@@ -11,6 +12,11 @@ let Purchases: typeof import('@revenuecat/purchases-capacitor').Purchases | null
 
 // Initialize RevenueCat on native platforms
 export async function initializeRevenueCat(userId: string): Promise<void> {
+  if (isDespia()) {
+    console.log('RevenueCat: Skipping initialization on Despia platform (native handling)');
+    return;
+  }
+
   if (!Capacitor.isNativePlatform()) {
     console.log('RevenueCat: Skipping initialization on web platform');
     return;
@@ -89,6 +95,25 @@ export async function getRevenueCatOfferings() {
 
 // Purchase a package via RevenueCat
 export async function purchasePackage(packageId: string): Promise<boolean> {
+  if (isDespia()) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('Despia: No user found for purchase');
+        return false;
+      }
+
+      // Determine offering based on packageId
+      // Assuming 'default' offering for now as per docs example, but could map packageId to offerings if needed
+      const offering = 'default';
+      launchDespiaPaywall(user.id, offering);
+      return true; // Return true to indicate launch success, actual purchase is async
+    } catch (error) {
+      console.error('Despia: Failed to launch paywall', error);
+      return false;
+    }
+  }
+
   if (!Purchases || !Capacitor.isNativePlatform()) {
     return false;
   }
