@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import despia from 'despia-native';
 import { supabase } from '@/integrations/supabase/client';
 import type { SubscriptionTier, SubscriptionInfo, TierLimits } from '@/types/subscription';
 import { TIER_LIMITS, REVENUECAT_ENTITLEMENTS } from '@/types/subscription';
@@ -95,21 +96,16 @@ export async function getRevenueCatOfferings() {
 
 // Purchase a package via RevenueCat
 export async function purchasePackage(packageId: string): Promise<boolean> {
-  if (isDespia()) {
+  if (window.navigator.userAgent.includes('Despia')) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('Despia: No user found for purchase');
-        return false;
-      }
+      if (!user) return false;
 
-      // Determine offering based on packageId
-      // Assuming 'default' offering for now as per docs example, but could map packageId to offerings if needed
-      const offering = 'default';
-      launchDespiaPaywall(user.id, offering);
-      return true; // Return true to indicate launch success, actual purchase is async
+      // Use Despia native bridge for purchase
+      despia(`revenuecat://purchase?external_id=${user.id}&product=${packageId}`);
+      return true; // The actual success will be handled by the iapSuccess callback
     } catch (error) {
-      console.error('Despia: Failed to launch paywall', error);
+      console.error('Despia purchase failed', error);
       return false;
     }
   }
