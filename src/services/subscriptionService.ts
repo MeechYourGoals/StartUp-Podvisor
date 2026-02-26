@@ -381,3 +381,33 @@ export async function getStripePortalUrl(): Promise<string | null> {
     return null;
   }
 }
+
+export async function launchDespiaPaywall(userId: string, offering: string): Promise<void> {
+  await despia(`revenuecat://launchPaywall?external_id=${userId}&offering=${offering}`);
+}
+
+export async function restoreDespiaPurchases(): Promise<any[]> {
+  const data = await despia('getpurchasehistory://', ['restoredData']);
+  return (data as any).restoredData || [];
+}
+
+export async function getDespiaEntitlements(): Promise<SubscriptionTier> {
+  try {
+    const restoredData = await restoreDespiaPurchases();
+
+    // Filter for active purchases
+    const activePurchases = restoredData.filter((p: any) => p.isActive);
+
+    // Check for entitlements
+    const hasSeriesZ = activePurchases.some((p: any) => p.entitlementId === REVENUECAT_ENTITLEMENTS.SERIES_Z);
+    if (hasSeriesZ) return 'series_z';
+
+    const hasSeed = activePurchases.some((p: any) => p.entitlementId === REVENUECAT_ENTITLEMENTS.SEED);
+    if (hasSeed) return 'seed';
+
+    return 'free';
+  } catch (error) {
+    console.error('Failed to get Despia entitlements', error);
+    return 'free';
+  }
+}

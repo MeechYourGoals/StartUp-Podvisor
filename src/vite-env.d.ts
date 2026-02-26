@@ -2,5 +2,4 @@
 
 interface Window {
   onRevenueCatPurchase?: () => void;
-  iapSuccess?: () => void;
 }

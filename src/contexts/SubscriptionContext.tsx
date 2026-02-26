@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/hooks/useAuth';
+import { useDespia } from '@/hooks/use-despia';
 import {
   initializeRevenueCat,
   identifyUser,
@@ -12,6 +13,9 @@ import {
   getStripePortalUrl,
   purchasePackage,
   restorePurchases,
+  launchDespiaPaywall,
+  getDespiaEntitlements,
+  syncSubscriptionToSupabase,
 } from '@/services/subscriptionService';
 import { isDespia } from '@/services/despiaService';
 import type { SubscriptionInfo, SubscriptionTier, TierLimits } from '@/types/subscription';
@@ -36,6 +40,7 @@ const SubscriptionContext = createContext<SubscriptionContextType | null>(null);
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const { isDespia } = useDespia();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +61,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       // On native platforms, also check RevenueCat entitlements
       if (isNative && !isDespiaApp) {
         await getRevenueCatEntitlements();
+      } else if (isDespia) {
+        const tier = await getDespiaEntitlements();
+        await syncSubscriptionToSupabase(tier);
       }
 
       const info = await getSubscriptionInfo();
@@ -200,9 +208,15 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   }, [isNative, isDespiaApp, refreshSubscription]);
 
   const handleRestorePurchases = useCallback(async () => {
-    await restorePurchases();
-    await refreshSubscription();
-  }, [refreshSubscription]);
+    if (isDespia) {
+       const tier = await getDespiaEntitlements();
+       await syncSubscriptionToSupabase(tier);
+       await refreshSubscription();
+    } else {
+       await restorePurchases();
+       await refreshSubscription();
+    }
+  }, [isDespia, refreshSubscription]);
 
   return (
     <SubscriptionContext.Provider
