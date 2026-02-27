@@ -166,20 +166,17 @@ export const BookmarkButton = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const newSet = new Set(selectedFolderIds);
+
       if (selectedFolderIds.has(folderId)) {
-        // Remove from folder
         await supabase
           .from('bookmarked_episodes')
           .delete()
           .eq('episode_id', episodeId)
           .eq('folder_id', folderId)
           .eq('user_id', user.id);
-        
-        const newSet = new Set(selectedFolderIds);
         newSet.delete(folderId);
-        setSelectedFolderIds(newSet);
       } else {
-        // Add to folder
         await supabase
           .from('bookmarked_episodes')
           .insert({ 
@@ -187,14 +184,11 @@ export const BookmarkButton = ({
             user_id: user.id,
             folder_id: folderId 
           });
-        
-        const newSet = new Set(selectedFolderIds);
         newSet.add(folderId);
-        setSelectedFolderIds(newSet);
       }
-      
-      setIsBookmarked(selectedFolderIds.size > 0 || !selectedFolderIds.has(folderId));
-      checkBookmarkStatus();
+
+      setSelectedFolderIds(newSet);
+      setIsBookmarked(newSet.size > 0);
     } catch (error: any) {
       toast({ 
         title: "Error", 
