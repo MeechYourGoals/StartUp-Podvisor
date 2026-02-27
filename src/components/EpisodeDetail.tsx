@@ -3,9 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ExternalLink, TrendingUp, Target, Lightbulb, RefreshCw, Loader2, Plus, X } from "lucide-react";
+import { ArrowLeft, ExternalLink, TrendingUp, Target, Lightbulb, RefreshCw, Loader2, Plus, X, Zap } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -183,6 +184,7 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
   const [loading, setLoading] = useState(true);
   const [reanalyzing, setReanalyzing] = useState(false);
   const { toast } = useToast();
+  const { canAnalyzeVideo, refreshSubscription } = useSubscription();
 
   const fetchEpisodeDetails = async () => {
     try {
@@ -253,6 +255,17 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
 
   const handleReanalyze = async () => {
     if (!episode) return;
+
+    const analysisCheck = canAnalyzeVideo();
+    if (!analysisCheck.allowed) {
+      toast({
+        title: "Analysis Limit Reached",
+        description: analysisCheck.message || "Upgrade to analyze more videos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setReanalyzing(true);
 
     try {
@@ -305,14 +318,14 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
+      await refreshSubscription();
+
       toast({
         title: "Re-analysis complete",
         description: "The episode has been re-analyzed with your current profile.",
       });
 
-      // Reload with new episode ID
       if (data?.episodeId) {
-        // Navigate to new episode - trigger parent refresh
         onBack();
       }
     } catch (error: any) {
