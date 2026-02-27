@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,15 +26,16 @@ const Auth = () => {
     triggerHapticFeedback('light');
     setGoogleLoading(true);
     try {
-      // Check if we're on the published domain (not a preview URL)
+      // Check if we're on the published domain (not a preview URL) or in a native app
       const isPublishedDomain = window.location.hostname === 'startup-podvisor.lovable.app';
-      
-      if (isPublishedDomain) {
-        // On published domain, bypass auth-bridge and use Supabase directly
+      const isNative = Capacitor.isNativePlatform();
+
+      if (isPublishedDomain || isNative) {
+        // On published domain or native app, bypass auth-bridge and use Supabase directly
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo: window.location.origin,
+            redirectTo: isNative ? "com.podvisor.app://auth/callback" : window.location.origin,
             skipBrowserRedirect: true,
           },
         });
@@ -70,12 +72,13 @@ const Auth = () => {
     setAppleLoading(true);
     try {
       const isPublishedDomain = window.location.hostname === 'startup-podvisor.lovable.app';
-      
-      if (isPublishedDomain) {
+      const isNative = Capacitor.isNativePlatform();
+
+      if (isPublishedDomain || isNative) {
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: "apple",
           options: {
-            redirectTo: window.location.origin,
+            redirectTo: isNative ? "com.podvisor.app://auth/callback" : window.location.origin,
             skipBrowserRedirect: true,
           },
         });
