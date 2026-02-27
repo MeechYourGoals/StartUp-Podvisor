@@ -23,6 +23,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Card } from "@/components/ui/card";
@@ -108,43 +113,64 @@ const Index = () => {
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out
           </Button>
-          <Button
-            variant={profileOpen && activeTab === "profiles" ? "default" : "outline"}
-            size="sm"
-            onClick={() => handleToggle("profiles")}
-          >
-            <Briefcase className="h-4 w-4 mr-2" />
-            Startup Profiles
-          </Button>
-          <Button
-            variant={profileOpen && activeTab === "bookmarks" ? "default" : "outline"}
-            size="sm"
-            onClick={() => handleToggle("bookmarks")}
-          >
-            <Bookmark className="h-4 w-4 mr-2" />
-            Bookmarks
-          </Button>
-          <ThemeToggle />
-        </div>
-      )}
 
-      {/* Desktop Profile Box */}
-      {isDesktop && profileOpen && (
-        <div className="fixed inset-x-0 top-[80px] z-40 pointer-events-none">
-          <div className="container mx-auto max-w-6xl px-4 relative">
-            <div className="absolute right-4 top-0 pointer-events-auto">
-              <Card className="w-[350px] max-h-[calc(100vh-100px)] overflow-hidden shadow-2xl p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={activeTab === "profiles" ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  triggerHapticFeedback('light');
+                  setActiveTab("profiles");
+                }}
+              >
+                <Briefcase className="h-4 w-4 mr-2" />
+                Startup Profiles
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[350px] mr-4 p-0" align="end" sideOffset={8}>
+              <div className="max-h-[calc(100vh-100px)] overflow-hidden p-4">
                 <ScrollArea className="h-full max-h-[calc(100vh-140px)]">
                   <ProfileSettings
-                    key={activeTab}
-                    defaultTab={activeTab}
+                    key="profiles"
+                    defaultTab="profiles"
                     onSelectEpisode={setSelectedEpisodeId}
                     condensed={true}
                   />
                 </ScrollArea>
-              </Card>
-            </div>
-          </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={activeTab === "bookmarks" ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  triggerHapticFeedback('light');
+                  setActiveTab("bookmarks");
+                }}
+              >
+                <Bookmark className="h-4 w-4 mr-2" />
+                Bookmarks
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[350px] mr-4 p-0" align="end" sideOffset={8}>
+               <div className="max-h-[calc(100vh-100px)] overflow-hidden p-4">
+                <ScrollArea className="h-full max-h-[calc(100vh-140px)]">
+                  <ProfileSettings
+                    key="bookmarks"
+                    defaultTab="bookmarks"
+                    onSelectEpisode={setSelectedEpisodeId}
+                    condensed={true}
+                  />
+                </ScrollArea>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <ThemeToggle />
         </div>
       )}
 

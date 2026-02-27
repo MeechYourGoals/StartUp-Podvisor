@@ -535,7 +535,7 @@ export const EpisodeDetail = ({ episodeId, onBack }: EpisodeDetailProps) => {
         <Card className="p-4 sm:p-8 bg-accent/5">
           <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
             <Target className="w-5 h-5 sm:w-6 sm:h-6 text-accent" />
-            Relevant for Chravel ({callouts.length})
+            Relevant for You ({callouts.length})
           </h2>
           <div className="space-y-3 sm:space-y-4">
             {callouts.map((callout) => (

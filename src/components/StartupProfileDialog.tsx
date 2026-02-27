@@ -142,7 +142,7 @@ export const StartupProfileDialog = ({
               <Input
                 value={formData.company_name}
                 onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                placeholder="Chravel"
+                placeholder=""
               />
             </div>
 
@@ -152,7 +152,7 @@ export const StartupProfileDialog = ({
                 type="url"
                 value={formData.company_website}
                 onChange={(e) => setFormData({ ...formData, company_website: e.target.value })}
-                placeholder="https://chravel.com"
+                placeholder=""
               />
             </div>
 
@@ -183,7 +183,7 @@ export const StartupProfileDialog = ({
                 <Input
                   value={formData.funding_raised}
                   onChange={(e) => setFormData({ ...formData, funding_raised: e.target.value })}
-                  placeholder="$2M"
+                  placeholder=""
                 />
               </div>
               <div className="space-y-2">
@@ -191,7 +191,7 @@ export const StartupProfileDialog = ({
                 <Input
                   value={formData.valuation}
                   onChange={(e) => setFormData({ ...formData, valuation: e.target.value })}
-                  placeholder="$10M"
+                  placeholder=""
                 />
               </div>
             </div>
@@ -210,7 +210,7 @@ export const StartupProfileDialog = ({
                 <Input
                   value={formData.industry}
                   onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-                  placeholder="Travel Tech"
+                  placeholder=""
                 />
               </div>
             </div>
@@ -220,7 +220,7 @@ export const StartupProfileDialog = ({
               <Textarea
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                placeholder="e.g., CEO, Head of Growth, or describe your responsibilities..."
+                placeholder=""
                 className="min-h-[80px]"
               />
             </div>
@@ -230,7 +230,7 @@ export const StartupProfileDialog = ({
               <Textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="What does your company do? What's your biggest challenge?"
+                placeholder=""
                 className="min-h-[100px]"
               />
             </div>

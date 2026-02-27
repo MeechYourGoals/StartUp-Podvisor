@@ -197,7 +197,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
               id="company_name"
               value={formData.company_name}
               onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-              placeholder="e.g., Chravel"
+              placeholder=""
               disabled={useExisting || isAnalyzing}
             />
           </div>
@@ -209,7 +209,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
               type="url"
               value={formData.company_website}
               onChange={(e) => setFormData({ ...formData, company_website: e.target.value })}
-              placeholder="https://yourcompany.com"
+              placeholder=""
               disabled={useExisting || isAnalyzing}
             />
           </div>
@@ -243,7 +243,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
                 id="funding_raised"
                 value={formData.funding_raised}
                 onChange={(e) => setFormData({ ...formData, funding_raised: e.target.value })}
-                placeholder="e.g., $2M"
+                placeholder=""
                 disabled={useExisting || isAnalyzing}
               />
             </div>
@@ -254,7 +254,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
                 id="valuation"
                 value={formData.valuation}
                 onChange={(e) => setFormData({ ...formData, valuation: e.target.value })}
-                placeholder="e.g., $10M"
+                placeholder=""
                 disabled={useExisting || isAnalyzing}
               />
             </div>
@@ -268,7 +268,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
                 type="number"
                 value={formData.employee_count}
                 onChange={(e) => setFormData({ ...formData, employee_count: parseInt(e.target.value) || 0 })}
-                placeholder="e.g., 8"
+                placeholder=""
                 disabled={useExisting || isAnalyzing}
               />
             </div>
@@ -279,7 +279,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
                 id="industry"
                 value={formData.industry}
                 onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-                placeholder="e.g., Travel Tech"
+                placeholder=""
                 disabled={useExisting || isAnalyzing}
               />
             </div>
@@ -291,7 +291,7 @@ export const StartupProfileForm = ({ onSubmit, savedProfiles = [], isAnalyzing =
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="What does your company do? What's your biggest challenge? What are you trying to achieve in the next 6-12 months?"
+              placeholder=""
               className="min-h-[120px]"
               disabled={useExisting || isAnalyzing}
             />
