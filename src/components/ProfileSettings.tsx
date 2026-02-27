@@ -383,6 +383,8 @@ export const ProfileSettings = ({
   const profileCheck = canCreateProfile();
   const bookmarkCheck = canCreateBookmark();
 
+  const displayProfileLimit = profileLimit >= 9999 ? "Unlimited" : profileLimit;
+
   return (
     <Tabs defaultValue={defaultTab} className="mt-6">
       <TabsList className="grid w-full grid-cols-3">
@@ -404,7 +406,7 @@ export const ProfileSettings = ({
         )}
         <div className="flex justify-between items-center">
           <p className="text-sm text-muted-foreground">
-            {subscription?.limits.profiles.used || profiles.length}/{profileLimit} profiles
+            {subscription?.limits.profiles.used || profiles.length}/{displayProfileLimit} profiles
           </p>
           <Button
             onClick={() => {
