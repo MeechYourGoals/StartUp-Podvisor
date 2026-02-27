@@ -35,6 +35,25 @@ serve(async (req) => {
       throw new Error('Episode URL is required');
     }
 
+    // Validate URL format and allowed domains
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(episodeUrl);
+    } catch {
+      throw new Error('Invalid URL format. Please provide a valid YouTube or Spotify link.');
+    }
+
+    const allowedHosts = [
+      'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com',
+      'youtu.be',
+      'open.spotify.com', 'spotify.com',
+      'podcasts.apple.com',
+    ];
+    const isAllowed = allowedHosts.some(host => parsedUrl.hostname === host || parsedUrl.hostname.endsWith('.' + host));
+    if (!isAllowed) {
+      throw new Error('Unsupported URL. Please provide a YouTube, Spotify, or Apple Podcasts link.');
+    }
+
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -94,11 +113,16 @@ serve(async (req) => {
     // Extract video ID for YouTube URLs
     let videoId = '';
     let videoTitle = '';
-    if (episodeUrl.includes('youtube.com') || episodeUrl.includes('youtu.be')) {
-      const urlParams = new URLSearchParams(new URL(episodeUrl).search);
-      videoId = urlParams.get('v') || episodeUrl.split('/').pop()?.split('?')[0] || '';
-      
-      // Fetch YouTube video metadata
+    const isYouTube = parsedUrl.hostname.includes('youtube.com') || parsedUrl.hostname === 'youtu.be';
+    if (isYouTube) {
+      if (parsedUrl.hostname === 'youtu.be') {
+        videoId = parsedUrl.pathname.slice(1).split('/')[0];
+      } else if (parsedUrl.pathname.startsWith('/shorts/')) {
+        videoId = parsedUrl.pathname.split('/shorts/')[1]?.split('/')[0] || '';
+      } else {
+        videoId = parsedUrl.searchParams.get('v') || '';
+      }
+
       try {
         const ytResponse = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(episodeUrl)}&format=json`);
         if (ytResponse.ok) {
@@ -116,7 +140,7 @@ Your task is to deeply analyze podcast content and extract comprehensive, action
 
 CRITICAL REQUIREMENTS:
 - Extract EXACTLY 10 tactical lessons ranked by actionability and impact (each 3-4 sentences with specific context)
-- Extract EXACTLY 5 callouts relevant to a travel/events startup (chravelapp.com)
+- Extract EXACTLY 5 startup-relevant callouts (key takeaways for founders at any stage)
 - Research and include actual company data (funding, valuation, stage, employee count)
 - Cite specific examples and stories from the founder
 - If data is unavailable, mark as "Unknown" or "Not disclosed"
@@ -134,7 +158,7 @@ INSTRUCTIONS:
 2. Identify the founder(s) and their company
 3. Research the company's current metrics (funding, valuation, stage, employees, industry)
 4. Extract EXACTLY 10 tactical, actionable lessons with specific context from the founder's stories
-5. Extract EXACTLY 5 callouts specifically relevant to chravelapp.com (a travel/events startup)
+5. Extract EXACTLY 5 startup-relevant callouts (key takeaways for early-stage founders)
 6. Rank lessons by actionability (1-10) and impact (1-10)
 7. Include founder attribution for each lesson
 8. Assign 1-3 relevant tags to each lesson (e.g. #growth, #culture, #fundraising)
@@ -203,13 +227,13 @@ INSTRUCTIONS:
                   },
                   chavelCallouts: {
                     type: "array",
-                    description: "Exactly 5 callouts relevant to travel/events startup",
+                    description: "Exactly 5 startup-relevant callouts for founders",
                     minItems: 5,
                     maxItems: 5,
                     items: {
                       type: "object",
                       properties: {
-                        text: { type: "string", description: "Specific callout relevant to travel/events" },
+                        text: { type: "string", description: "Specific callout relevant to startup founders" },
                         relevanceScore: { type: "integer", minimum: 1, maximum: 10 }
                       },
                       required: ["text", "relevanceScore"]
@@ -449,25 +473,14 @@ INSTRUCTIONS:
       }
     }
 
-    // Step 8: Default ChravelApp profile for personalized insights
-    const chravelDefaultProfile = {
-      company_name: "ChravelApp",
-      company_website: "https://www.chravelapp.com",
-      stage: "Pre-seed",
-      funding_raised: "M",
-      valuation: "0M",
-      employee_count: 5,
-      industry: "Travel Tech",
-      description: "ChravelApp is the AI-powered hub for group adventures. We solve the chaos of group travel coordination where people juggle 15+ apps and spend 16 hours planning trips. Our platform combines shared calendars, file management, payment splitting, and an AI concierge with full trip context into one unified solution. Like Microsoft's Office 365 streamlines work, ChravelApp is 'Travel 365' for out-of-office coordination. Target markets include consumer group travel (00B+), corporate/professional travel (.7B), and large-scale events (50B). Key challenges: achieving product-market fit, driving user adoption, and building network effects in a crowded travel tech space."
-    };
-
-    // Use provided profile, or default to Chravel
+    // Use the provided startup profile for personalized insights, if any
     const hasCustomProfile = startupProfile && (startupProfile.company_name || startupProfile.stage);
-    const profileToUse = hasCustomProfile ? startupProfile : chravelDefaultProfile;
+    const profileToUse = hasCustomProfile ? startupProfile : null;
     
+    // Only generate personalized insights when a user profile is provided
+    if (profileToUse) {
     console.log('Generating personalized insights...');
     
-    // Fetch the inserted lessons
     const { data: insertedLessons, error: fetchError } = await supabase
       .from('lessons')
       .select('id, lesson_text')
@@ -554,11 +567,12 @@ Make it tactical and specific to their company stage, industry, and challenges.`
           }
       }
     }
+    } // end if (profileToUse)
 
     return new Response(JSON.stringify({ 
       success: true, 
       episodeId: episode.id,
-      message: 'Episode analyzed successfully with personalized insights'
+      message: profileToUse ? 'Episode analyzed successfully with personalized insights' : 'Episode analyzed successfully'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

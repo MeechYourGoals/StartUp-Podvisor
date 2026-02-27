@@ -45,7 +45,7 @@ export const AnalysisForm = () => {
   const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
   const [startupContext, setStartupContext] = useState<any>(null);
   const { toast } = useToast();
-  const { subscription, canAnalyzeVideo, trackAnalysis, refreshSubscription } = useSubscription();
+  const { subscription, canAnalyzeVideo, refreshSubscription } = useSubscription();
   const profileLimit = subscription?.limits.profiles.max || 1;
 
   useEffect(() => {
@@ -100,13 +100,12 @@ export const AnalysisForm = () => {
       return;
     }
 
+    triggerHapticFeedback('light');
     if (mode === "quick") {
       analyzeWithContext(null);
     } else {
       setStep("profile");
     }
-    triggerHapticFeedback('light');
-    setStep("profile");
   };
 
   const handleProfileSubmit = async (profile: any, saveProfile: boolean) => {
@@ -131,11 +130,46 @@ export const AnalysisForm = () => {
     await analyzeWithContext(hasData ? profile : null);
   };
 
+  const normalizeUrl = (url: string): string => {
+    try {
+      const parsed = new URL(url.trim());
+      if (parsed.hostname.includes('youtu.be')) {
+        const videoId = parsed.pathname.split('/').pop();
+        return `youtube.com/watch?v=${videoId}`;
+      }
+      if (parsed.hostname.includes('youtube.com')) {
+        const videoId = parsed.searchParams.get('v');
+        if (videoId) return `youtube.com/watch?v=${videoId}`;
+      }
+      return parsed.hostname + parsed.pathname;
+    } catch {
+      return url.trim().toLowerCase();
+    }
+  };
+
   const analyzeWithContext = async (profile: any) => {
     setIsAnalyzing(true);
     setProgress(profile ? "Analyzing episode with your startup context..." : "Analyzing episode...");
 
     try {
+      setProgress("Checking for duplicates...");
+      const { data: existing } = await supabase
+        .from('episodes')
+        .select('id, title, url')
+        .eq('url', episodeUrl.trim())
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        toast({
+          title: "Episode already analyzed",
+          description: `"${existing[0].title}" has already been analyzed. View it in your episodes list.`,
+        });
+        setIsAnalyzing(false);
+        setProgress("");
+        window.dispatchEvent(new CustomEvent('episodeAnalyzed'));
+        return;
+      }
+
       setProgress("Fetching episode data...");
       const { data, error } = await supabase.functions.invoke('analyze-episode', {
         body: { 
@@ -159,9 +193,8 @@ export const AnalysisForm = () => {
 
       setProgress("Generating insights...");
 
-      // Track the analysis for usage limits
-      await trackAnalysis();
       triggerHapticFeedback('heavy');
+      // Server-side already increments the analysis count via RPC; just refresh the UI
       await refreshSubscription();
 
       toast({
