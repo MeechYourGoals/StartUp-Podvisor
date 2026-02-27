@@ -59,7 +59,25 @@ const PrivacyPolicy = () => {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">4. Data Security</h2>
+            <h2 className="text-2xl font-semibold mb-4">4. Third-Party Services</h2>
+            <p>
+              We use trusted third-party services to operate our application and provide our services to you.
+              These services may collect and process your data according to their own privacy policies.
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mt-2">
+              <li>
+                <strong>Supabase:</strong> We use Supabase for authentication, database storage, and backend services.
+                Supabase securely stores your user account information (email) and application data (bookmarks, profiles, etc.).
+              </li>
+              <li>
+                <strong>RevenueCat:</strong> We use RevenueCat to manage subscriptions and in-app purchase history.
+                RevenueCat may process transaction data to verify your subscription status and entitlements.
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">5. Data Security</h2>
             <p>
               We have put in place appropriate security measures to prevent your personal data from being
               accidentally lost, used or accessed in an unauthorized way, altered or disclosed.
@@ -67,7 +85,7 @@ const PrivacyPolicy = () => {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">5. Your Legal Rights</h2>
+            <h2 className="text-2xl font-semibold mb-4">6. Your Legal Rights</h2>
             <p>
               Under certain circumstances, you have rights under data protection laws in relation to your
               personal data, including the right to request access, correction, erasure, restriction,
@@ -80,7 +98,7 @@ const PrivacyPolicy = () => {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">6. Contact Us</h2>
+            <h2 className="text-2xl font-semibold mb-4">7. Contact Us</h2>
             <p>
               If you have any questions about this privacy policy or our privacy practices, please contact
               us at support@podvisor.app.
