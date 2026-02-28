@@ -1,5 +1,7 @@
 export type SubscriptionTier = 'free' | 'seed' | 'series_z';
 
+export type BillingPeriod = 'monthly' | 'yearly' | 'lifetime';
+
 export interface TierLimits {
   profiles: { max: number; used: number };
   bookmarks: { max: number; used: number };
@@ -63,14 +65,20 @@ export const TIER_LIMITS: Record<SubscriptionTier, Omit<TierLimits, 'profiles' |
   },
 };
 
-export const TIER_PRICING: Record<SubscriptionTier, {
+export interface TierPricing {
   name: string;
   displayName: string;
   price: number;
   priceDisplay: string;
+  yearlyPrice?: number;
+  yearlyPriceDisplay?: string;
+  lifetimePrice?: number;
+  lifetimePriceDisplay?: string;
   features: string[];
   recommended?: boolean;
-}> = {
+}
+
+export const TIER_PRICING: Record<SubscriptionTier, TierPricing> = {
   free: {
     name: 'free',
     displayName: 'Free',
@@ -88,6 +96,10 @@ export const TIER_PRICING: Record<SubscriptionTier, {
     displayName: 'Seed',
     price: 4.99,
     priceDisplay: '$4.99/month',
+    yearlyPrice: 39.99,
+    yearlyPriceDisplay: '$39.99/year',
+    lifetimePrice: 79.99,
+    lifetimePriceDisplay: '$79.99 once',
     features: [
       '3 startup profiles',
       '10 bookmarks per profile',
@@ -102,6 +114,10 @@ export const TIER_PRICING: Record<SubscriptionTier, {
     displayName: 'Series Z',
     price: 14.99,
     priceDisplay: '$14.99/month',
+    yearlyPrice: 119.99,
+    yearlyPriceDisplay: '$119.99/year',
+    lifetimePrice: 249.99,
+    lifetimePriceDisplay: '$249.99 once',
     features: [
       '10 startup profiles',
       '10 bookmarks per profile',
@@ -113,9 +129,32 @@ export const TIER_PRICING: Record<SubscriptionTier, {
   },
 };
 
+/** RevenueCat entitlement identifiers — must match your RevenueCat dashboard */
 export const REVENUECAT_ENTITLEMENTS = {
+  /** Primary entitlement for the app — unlocks all Pro features */
+  PRO: 'Founder Mode Advisor Pro',
+  /** Legacy: maps to Seed tier */
   SEED: 'seed_subscription',
+  /** Legacy: maps to Series Z tier */
   SERIES_Z: 'series_z_subscription',
+} as const;
+
+/**
+ * RevenueCat product identifiers — must match App Store Connect / Google Play Console.
+ * These map to your RevenueCat Offerings > Packages configuration.
+ */
+export const REVENUECAT_PRODUCTS = {
+  SEED_MONTHLY: 'seed_monthly',
+  SEED_YEARLY: 'seed_yearly',
+  SEED_LIFETIME: 'seed_lifetime',
+  SERIES_Z_MONTHLY: 'series_z_monthly',
+  SERIES_Z_YEARLY: 'series_z_yearly',
+  SERIES_Z_LIFETIME: 'series_z_lifetime',
+} as const;
+
+/** RevenueCat offering identifiers */
+export const REVENUECAT_OFFERINGS = {
+  DEFAULT: 'default',
 } as const;
 
 export const STRIPE_PRICE_IDS = {

@@ -28,7 +28,7 @@ import { useState } from "react";
 
 const Account = () => {
   const { user, loading: authLoading, signOut, deleteAccount } = useAuth();
-  const { subscription, loading: subLoading, isNative, restorePurchases, refreshSubscription } = useSubscription();
+  const { subscription, loading: subLoading, isNative, restorePurchases, refreshSubscription, manageSubscription } = useSubscription();
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useMediaQuery("(max-width: 767px)");
@@ -177,6 +177,31 @@ const Account = () => {
           {/* Subscription & Usage */}
           <UsageDisplay showUpgrade />
 
+          {/* Manage Subscription — Customer Center on native, Stripe Portal on web */}
+          {subscription?.tier !== "free" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Manage Subscription</CardTitle>
+                <CardDescription>
+                  View, modify, or cancel your subscription
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <Button variant="outline" onClick={() => { triggerHapticFeedback('light'); manageSubscription(); }}>
+                  Manage Subscription
+                </Button>
+                {isNative && (
+                  <div className="text-center">
+                    <Button variant="ghost" size="sm" onClick={handleRestore}>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Restore Purchases
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Subscription Plans */}
           {subscription?.tier !== "series_z" && (
             <Card>
@@ -189,7 +214,7 @@ const Account = () => {
               <CardContent>
                 <PricingPlans />
 
-                {isNative && (
+                {isNative && subscription?.tier === "free" && (
                   <div className="mt-6 text-center">
                     <Button variant="outline" onClick={handleRestore}>
                       <RotateCcw className="h-4 w-4 mr-2" />

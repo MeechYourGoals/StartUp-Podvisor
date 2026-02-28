@@ -8,8 +8,25 @@ import { isDespia, launchDespiaPaywall } from './despiaService';
 /** Founder/Super Admin emails with unlimited access - no feature limits */
 const FOUNDER_EMAILS = ['ccamechi@gmail.com'];
 
+/**
+ * RevenueCat API key — platform-specific.
+ * Uses env vars when available, falls back to the provided test key.
+ */
+function getRevenueCatApiKey(): string {
+  const platform = Capacitor.getPlatform();
+  if (platform === 'ios') {
+    return import.meta.env.VITE_REVENUECAT_IOS_API_KEY || 'test_iOiaiuTdgHlGqXWbJXQCqwBVTOj';
+  }
+  if (platform === 'android') {
+    return import.meta.env.VITE_REVENUECAT_ANDROID_API_KEY || 'test_iOiaiuTdgHlGqXWbJXQCqwBVTOj';
+  }
+  return 'test_iOiaiuTdgHlGqXWbJXQCqwBVTOj';
+}
+
 // RevenueCat SDK - conditionally loaded for native platforms
 let Purchases: typeof import('@revenuecat/purchases-capacitor').Purchases | null = null;
+// RevenueCat UI SDK - conditionally loaded for paywalls and customer center
+let RevenueCatUI: typeof import('@revenuecat/purchases-capacitor-ui').RevenueCatUI | null = null;
 
 // Initialize RevenueCat on native platforms
 export async function initializeRevenueCat(userId: string): Promise<void> {
@@ -24,19 +41,29 @@ export async function initializeRevenueCat(userId: string): Promise<void> {
   }
 
   try {
-    const { Purchases: RevenueCatPurchases } = await import('@revenuecat/purchases-capacitor');
+    const { Purchases: RevenueCatPurchases, LOG_LEVEL } = await import('@revenuecat/purchases-capacitor');
     Purchases = RevenueCatPurchases;
 
-    const apiKey = import.meta.env.VITE_REVENUECAT_IOS_API_KEY;
-    if (!apiKey) {
-      console.warn('RevenueCat: API key not configured');
-      return;
+    // Enable debug logging in development
+    if (import.meta.env.DEV) {
+      await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
     }
+
+    const apiKey = getRevenueCatApiKey();
 
     await Purchases.configure({
       apiKey,
       appUserID: userId,
     });
+
+    // Lazily load RevenueCatUI for paywalls and customer center
+    try {
+      const uiModule = await import('@revenuecat/purchases-capacitor-ui');
+      RevenueCatUI = uiModule.RevenueCatUI;
+      console.log('RevenueCat UI: Loaded successfully');
+    } catch (uiError) {
+      console.warn('RevenueCat UI: Not available (paywall/customer center disabled)', uiError);
+    }
 
     console.log('RevenueCat: Initialized for user', userId);
   } catch (error) {
@@ -56,7 +83,11 @@ export async function identifyUser(userId: string): Promise<void> {
   }
 }
 
-// Get current entitlements from RevenueCat
+/**
+ * Resolve the user's subscription tier from RevenueCat entitlements.
+ * Checks for the primary "Founder Mode Advisor Pro" entitlement first,
+ * then falls back to legacy tier-specific entitlements.
+ */
 export async function getRevenueCatEntitlements(): Promise<SubscriptionTier> {
   if (!Purchases || !Capacitor.isNativePlatform()) {
     return 'free';
@@ -66,6 +97,12 @@ export async function getRevenueCatEntitlements(): Promise<SubscriptionTier> {
     const { customerInfo } = await Purchases.getCustomerInfo();
     const entitlements = customerInfo.entitlements.active;
 
+    // Primary entitlement — "Founder Mode Advisor Pro" grants Series Z access
+    if (entitlements[REVENUECAT_ENTITLEMENTS.PRO]) {
+      return 'series_z';
+    }
+
+    // Legacy entitlements
     if (entitlements[REVENUECAT_ENTITLEMENTS.SERIES_Z]) {
       return 'series_z';
     }
@@ -76,6 +113,18 @@ export async function getRevenueCatEntitlements(): Promise<SubscriptionTier> {
   } catch (error) {
     console.error('RevenueCat: Failed to get entitlements', error);
     return 'free';
+  }
+}
+
+/** Get the raw CustomerInfo from RevenueCat */
+export async function getCustomerInfo() {
+  if (!Purchases || !Capacitor.isNativePlatform()) return null;
+  try {
+    const { customerInfo } = await Purchases.getCustomerInfo();
+    return customerInfo;
+  } catch (error) {
+    console.error('RevenueCat: Failed to get customer info', error);
+    return null;
   }
 }
 
@@ -123,11 +172,11 @@ export async function purchasePackage(packageId: string): Promise<boolean> {
       return false;
     }
 
-    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+    await Purchases.purchasePackage({ aPackage: pkg });
 
     // Sync to Supabase
-    const tier = getRevenueCatEntitlements();
-    await syncSubscriptionToSupabase(await tier);
+    const tier = await getRevenueCatEntitlements();
+    await syncSubscriptionToSupabase(tier);
 
     return true;
   } catch (error: any) {
@@ -140,6 +189,112 @@ export async function purchasePackage(packageId: string): Promise<boolean> {
   }
 }
 
+// ─── RevenueCat Paywall (native UI) ────────────────────────────────
+
+export type PaywallResult = 'PURCHASED' | 'RESTORED' | 'CANCELLED' | 'ERROR';
+
+/**
+ * Present the RevenueCat native paywall.
+ * Uses RevenueCatUI.presentPaywallIfNeeded when an entitlement is specified,
+ * which auto-dismisses if the user already has the entitlement.
+ */
+export async function presentPaywall(
+  requiredEntitlement: string = REVENUECAT_ENTITLEMENTS.PRO
+): Promise<PaywallResult> {
+  // Despia: use native bridge paywall
+  if (isDespia()) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return 'ERROR';
+      await launchDespiaPaywall(user.id, 'default');
+      return 'PURCHASED'; // Despia handles result via callbacks
+    } catch {
+      return 'ERROR';
+    }
+  }
+
+  if (!RevenueCatUI || !Capacitor.isNativePlatform()) {
+    console.warn('RevenueCat UI: Not available — cannot present paywall');
+    return 'ERROR';
+  }
+
+  try {
+    const result = await RevenueCatUI.presentPaywallIfNeeded({
+      requiredEntitlementIdentifier: requiredEntitlement,
+    });
+
+    const paywallResult = (result as any)?.result as string | undefined;
+
+    if (paywallResult === 'PURCHASED' || paywallResult === 'RESTORED') {
+      const tier = await getRevenueCatEntitlements();
+      await syncSubscriptionToSupabase(tier);
+      return paywallResult as PaywallResult;
+    }
+
+    return (paywallResult as PaywallResult) || 'CANCELLED';
+  } catch (error) {
+    console.error('RevenueCat UI: Paywall error', error);
+    return 'ERROR';
+  }
+}
+
+/**
+ * Present the RevenueCat native paywall unconditionally (always shows).
+ */
+export async function presentPaywallAlways(): Promise<PaywallResult> {
+  if (isDespia()) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return 'ERROR';
+      await launchDespiaPaywall(user.id, 'default');
+      return 'PURCHASED';
+    } catch {
+      return 'ERROR';
+    }
+  }
+
+  if (!RevenueCatUI || !Capacitor.isNativePlatform()) {
+    return 'ERROR';
+  }
+
+  try {
+    const result = await RevenueCatUI.presentPaywall();
+    const paywallResult = (result as any)?.result as string | undefined;
+
+    if (paywallResult === 'PURCHASED' || paywallResult === 'RESTORED') {
+      const tier = await getRevenueCatEntitlements();
+      await syncSubscriptionToSupabase(tier);
+    }
+
+    return (paywallResult as PaywallResult) || 'CANCELLED';
+  } catch (error) {
+    console.error('RevenueCat UI: Paywall error', error);
+    return 'ERROR';
+  }
+}
+
+// ─── RevenueCat Customer Center ────────────────────────────────────
+
+/**
+ * Present the RevenueCat Customer Center for subscription management.
+ * This provides a self-service UI for users to manage, cancel, or restore subscriptions.
+ */
+export async function presentCustomerCenter(): Promise<void> {
+  if (!RevenueCatUI || !Capacitor.isNativePlatform()) {
+    console.warn('RevenueCat UI: Customer Center not available');
+    return;
+  }
+
+  try {
+    await RevenueCatUI.presentCustomerCenter();
+    // After customer center interaction, re-sync subscription state
+    const tier = await getRevenueCatEntitlements();
+    await syncSubscriptionToSupabase(tier);
+  } catch (error) {
+    console.error('RevenueCat UI: Customer Center error', error);
+  }
+}
+
 // Restore purchases via RevenueCat
 export async function restorePurchases(): Promise<SubscriptionTier> {
   if (!Purchases || !Capacitor.isNativePlatform()) {
@@ -147,7 +302,7 @@ export async function restorePurchases(): Promise<SubscriptionTier> {
   }
 
   try {
-    const { customerInfo } = await Purchases.restorePurchases();
+    await Purchases.restorePurchases();
     const tier = await getRevenueCatEntitlements();
     await syncSubscriptionToSupabase(tier);
     return tier;
@@ -398,7 +553,11 @@ export async function getDespiaEntitlements(): Promise<SubscriptionTier> {
     // Filter for active purchases
     const activePurchases = restoredData.filter((p: any) => p.isActive);
 
-    // Check for entitlements
+    // Check for primary "Founder Mode Advisor Pro" entitlement first
+    const hasPro = activePurchases.some((p: any) => p.entitlementId === REVENUECAT_ENTITLEMENTS.PRO);
+    if (hasPro) return 'series_z';
+
+    // Legacy entitlements
     const hasSeriesZ = activePurchases.some((p: any) => p.entitlementId === REVENUECAT_ENTITLEMENTS.SERIES_Z);
     if (hasSeriesZ) return 'series_z';
 

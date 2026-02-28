@@ -13,13 +13,16 @@ import {
   getStripePortalUrl,
   purchasePackage,
   restorePurchases,
-  launchDespiaPaywall,
   getDespiaEntitlements,
   syncSubscriptionToSupabase,
+  presentPaywall as presentPaywallService,
+  presentPaywallAlways as presentPaywallAlwaysService,
+  presentCustomerCenter as presentCustomerCenterService,
 } from '@/services/subscriptionService';
 import { isDespia } from '@/services/despiaService';
-import type { SubscriptionInfo, SubscriptionTier, TierLimits } from '@/types/subscription';
-import { TIER_PRICING, STRIPE_PRICE_IDS } from '@/types/subscription';
+import type { SubscriptionInfo, SubscriptionTier } from '@/types/subscription';
+import { STRIPE_PRICE_IDS, REVENUECAT_ENTITLEMENTS } from '@/types/subscription';
+import type { PaywallResult } from '@/services/subscriptionService';
 
 interface SubscriptionContextType {
   subscription: SubscriptionInfo | null;
@@ -33,6 +36,12 @@ interface SubscriptionContextType {
   upgradeTo: (tier: SubscriptionTier) => Promise<void>;
   manageSubscription: () => Promise<void>;
   restorePurchases: () => Promise<void>;
+  /** Present RevenueCat native paywall (only shows if user lacks the entitlement) */
+  presentPaywall: () => Promise<PaywallResult>;
+  /** Present RevenueCat native paywall unconditionally */
+  presentPaywallAlways: () => Promise<PaywallResult>;
+  /** Present RevenueCat Customer Center for subscription management */
+  presentCustomerCenter: () => Promise<void>;
   isNative: boolean;
 }
 
@@ -163,16 +172,11 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const upgradeTo = useCallback(async (tier: SubscriptionTier) => {
     if (tier === 'free') return;
 
-    if (isDespiaApp) {
-      // Use Despia native bridge
-      const packageId = tier === 'seed' ? 'seed_monthly' : 'series_z_monthly';
-      // Despia flow is async via window.onRevenueCatPurchase, so we just trigger it here
-      await purchasePackage(packageId);
-    } else if (isNative) {
-      // Use RevenueCat for native purchases (Capacitor)
-      const packageId = tier === 'seed' ? 'seed_monthly' : 'series_z_monthly';
-      const success = await purchasePackage(packageId);
-      if (success) {
+    if (isDespiaApp || isNative) {
+      // On native / Despia — present the RevenueCat paywall.
+      // The paywall shows all available packages and handles purchase natively.
+      const result = await presentPaywallService(REVENUECAT_ENTITLEMENTS.PRO);
+      if (result === 'PURCHASED' || result === 'RESTORED') {
         await refreshSubscription();
       }
     } else {
@@ -189,14 +193,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   }, [isNative, isDespiaApp, refreshSubscription]);
 
   const manageSubscription = useCallback(async () => {
-    if (isDespiaApp) {
-       // Despia management
-       await restorePurchases();
-       await refreshSubscription();
-    } else if (isNative) {
-      // RevenueCat handles subscription management through the app store
-      // Just refresh to get latest status
-      await restorePurchases();
+    if (isDespiaApp || isNative) {
+      // Use RevenueCat Customer Center for native subscription management
+      await presentCustomerCenterService();
       await refreshSubscription();
     } else {
       // Redirect to Stripe Customer Portal
@@ -208,7 +207,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   }, [isNative, isDespiaApp, refreshSubscription]);
 
   const handleRestorePurchases = useCallback(async () => {
-    if (isDespia) {
+    if (isDespiaApp) {
        const tier = await getDespiaEntitlements();
        await syncSubscriptionToSupabase(tier);
        await refreshSubscription();
@@ -216,7 +215,28 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
        await restorePurchases();
        await refreshSubscription();
     }
-  }, [isDespia, refreshSubscription]);
+  }, [isDespiaApp, refreshSubscription]);
+
+  const handlePresentPaywall = useCallback(async (): Promise<PaywallResult> => {
+    const result = await presentPaywallService(REVENUECAT_ENTITLEMENTS.PRO);
+    if (result === 'PURCHASED' || result === 'RESTORED') {
+      await refreshSubscription();
+    }
+    return result;
+  }, [refreshSubscription]);
+
+  const handlePresentPaywallAlways = useCallback(async (): Promise<PaywallResult> => {
+    const result = await presentPaywallAlwaysService();
+    if (result === 'PURCHASED' || result === 'RESTORED') {
+      await refreshSubscription();
+    }
+    return result;
+  }, [refreshSubscription]);
+
+  const handlePresentCustomerCenter = useCallback(async () => {
+    await presentCustomerCenterService();
+    await refreshSubscription();
+  }, [refreshSubscription]);
 
   return (
     <SubscriptionContext.Provider
@@ -232,6 +252,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         upgradeTo,
         manageSubscription,
         restorePurchases: handleRestorePurchases,
+        presentPaywall: handlePresentPaywall,
+        presentPaywallAlways: handlePresentPaywallAlways,
+        presentCustomerCenter: handlePresentCustomerCenter,
         isNative,
       }}
     >
