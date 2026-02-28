@@ -70,10 +70,10 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 safe-area-inset">
-      {/* Mobile & Tablet nav - compact header for touch devices */}
+    <div className="h-screen flex flex-col bg-gradient-to-b from-background to-muted/20">
+      {/* Mobile & Tablet nav - relative top bar with safe area (Despia pattern) */}
       {!isDesktop ? (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border safe-top">
+        <div className="relative z-50 bg-background/80 backdrop-blur-sm border-b border-border" style={{ paddingTop: 'var(--safe-area-top)' }}>
           <div className="flex items-center justify-between px-4 py-2">
             <span className="font-bold text-sm text-primary">Founder Lessons</span>
             <div className="flex items-center gap-1">
@@ -199,19 +199,20 @@ const Index = () => {
         </Sheet>
       )}
 
-      <div className={!isDesktop ? "pt-12" : ""}>
+      {/* Scrollable content area (Despia pattern: only this element scrolls) */}
+      <div className="despia-scroll">
         <HeroSection />
-      </div>
-      <div className="container mx-auto px-4 py-8 sm:py-12 space-y-8 sm:space-y-12 max-w-6xl pb-24 md:pb-8 safe-bottom">
-        <AnalysisForm />
-        {selectedEpisodeId ? (
-          <EpisodeDetail 
-            episodeId={selectedEpisodeId} 
-            onBack={() => setSelectedEpisodeId(null)} 
-          />
-        ) : (
-          <EpisodesTable onSelectEpisode={setSelectedEpisodeId} />
-        )}
+        <div className="container mx-auto px-4 py-8 sm:py-12 space-y-8 sm:space-y-12 max-w-6xl pb-24 md:pb-8" style={{ paddingBottom: isMobile ? 'calc(5rem + var(--safe-area-bottom))' : undefined }}>
+          <AnalysisForm />
+          {selectedEpisodeId ? (
+            <EpisodeDetail
+              episodeId={selectedEpisodeId}
+              onBack={() => setSelectedEpisodeId(null)}
+            />
+          ) : (
+            <EpisodesTable onSelectEpisode={setSelectedEpisodeId} />
+          )}
+        </div>
       </div>
 
       <MobileBottomNav />
