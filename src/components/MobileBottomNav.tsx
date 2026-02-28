@@ -19,7 +19,7 @@ export const MobileBottomNav = () => {
       role="navigation"
       aria-label="Main navigation"
     >
-      <div className="flex items-center justify-around h-14 max-h-[calc(3.5rem+env(safe-area-inset-bottom))]">
+      <div className="flex items-center justify-around h-14 max-h-[calc(3.5rem+var(--safe-area-bottom))]">
         {navItems.map(({ path, icon: Icon, label }) => {
           const isActive = path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
           return (

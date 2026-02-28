@@ -76,9 +76,10 @@ export default function Founders() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 pb-24 md:pb-8 safe-area-inset">
-       <div className="container mx-auto px-4 py-8 max-w-6xl">
-         <div className="flex items-center justify-between mb-8">
+    <div className="h-screen flex flex-col bg-gradient-to-b from-background to-muted/20">
+       {/* Top bar with safe area (Despia pattern) */}
+       <div className="relative z-50 bg-background/80 backdrop-blur-sm border-b border-border" style={{ paddingTop: 'var(--safe-area-top)' }}>
+         <div className="flex items-center justify-between px-4 py-3 max-w-6xl mx-auto">
            <div className="flex items-center gap-4">
              <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="md:hidden">
                <ArrowLeft className="w-5 h-5" />
@@ -93,35 +94,40 @@ export default function Founders() {
              <ThemeToggle />
            </div>
          </div>
+       </div>
 
-         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-           {founders.map((founder) => (
-             <Card
-               key={founder.name}
-               className="p-4 hover:shadow-lg transition-shadow cursor-pointer border-l-4 border-l-primary/50"
-               onClick={() => navigate(`/?founder=${encodeURIComponent(founder.name)}`)}
-             >
-               <h3 className="font-bold text-lg mb-1 truncate" title={founder.name}>{founder.name}</h3>
-               <p className="text-sm text-muted-foreground mb-3 truncate" title={founder.companyName}>{founder.companyName}</p>
-               <div className="flex flex-wrap gap-2">
-                 <Badge variant="secondary" className="text-xs">
-                   {founder.episodeCount} Episode{founder.episodeCount !== 1 ? 's' : ''}
-                 </Badge>
-                 {founder.industry && (
-                   <Badge variant="outline" className="text-xs truncate max-w-[150px]">
-                     {founder.industry}
+       {/* Scrollable content (Despia pattern) */}
+       <div className="despia-scroll" style={{ paddingBottom: 'calc(5rem + var(--safe-area-bottom))' }}>
+         <div className="container mx-auto px-4 py-8 max-w-6xl">
+           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+             {founders.map((founder) => (
+               <Card
+                 key={founder.name}
+                 className="p-4 hover:shadow-lg transition-shadow cursor-pointer border-l-4 border-l-primary/50"
+                 onClick={() => navigate(`/?founder=${encodeURIComponent(founder.name)}`)}
+               >
+                 <h3 className="font-bold text-lg mb-1 truncate" title={founder.name}>{founder.name}</h3>
+                 <p className="text-sm text-muted-foreground mb-3 truncate" title={founder.companyName}>{founder.companyName}</p>
+                 <div className="flex flex-wrap gap-2">
+                   <Badge variant="secondary" className="text-xs">
+                     {founder.episodeCount} Episode{founder.episodeCount !== 1 ? 's' : ''}
                    </Badge>
-                 )}
-               </div>
-             </Card>
-           ))}
-         </div>
+                   {founder.industry && (
+                     <Badge variant="outline" className="text-xs truncate max-w-[150px]">
+                       {founder.industry}
+                     </Badge>
+                   )}
+                 </div>
+               </Card>
+             ))}
+           </div>
 
-         {founders.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              No founders found. Start by analyzing episodes!
-            </div>
-         )}
+           {founders.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                No founders found. Start by analyzing episodes!
+              </div>
+           )}
+         </div>
        </div>
        <MobileBottomNav />
     </div>

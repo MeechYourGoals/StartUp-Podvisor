@@ -8,9 +8,9 @@ export const PublicLanding = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 safe-area-inset">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border safe-top">
+    <div className="h-screen flex flex-col bg-gradient-to-b from-background to-muted/20">
+      {/* Navigation - relative top bar with safe area (Despia pattern) */}
+      <nav className="relative z-50 bg-background/80 backdrop-blur-sm border-b border-border" style={{ paddingTop: 'var(--safe-area-top)' }}>
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
@@ -30,8 +30,10 @@ export const PublicLanding = () => {
         </div>
       </nav>
 
+      {/* Scrollable content (Despia pattern) */}
+      <div className="despia-scroll">
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-16 sm:pt-20">
+      <section className="relative overflow-hidden">
         <div 
           className="absolute inset-0 opacity-20"
           style={{ 
@@ -133,11 +135,12 @@ export const PublicLanding = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-6 sm:py-8 safe-bottom">
+      <footer className="border-t border-border py-6 sm:py-8" style={{ paddingBottom: 'calc(1.5rem + var(--safe-area-bottom))' }}>
         <div className="container mx-auto px-4 text-center text-xs sm:text-sm text-muted-foreground">
           © {new Date().getFullYear()} Founder Lessons Database. Built for founders, by founders.
         </div>
       </footer>
+      </div>
     </div>
   );
 };
